@@ -1,15 +1,22 @@
 from typing import Annotated
-from fastapi import Depends
-from pydantic import BaseModel
+from fastapi import Depends, Query
+from pydantic import BaseModel, EmailStr, constr
 from sqlmodel import Field, Session, SQLModel, create_engine, select
 
 
 class User(SQLModel):
     id: int | None = Field(default=None, primary_key=True)
-    email : str = Field(index=True, nullable=False, unique=True)
+    email : EmailStr = Field(index=True, nullable=False, unique=True)
     first_name : str = Field(index=True, nullable=False)
     second_name : str = Field(index=True, nullable=False)
     colour : str = Field(default='RED')
+
+class UserCreate(BaseModel):
+    email: EmailStr
+    first_name: str
+    second_name: str
+    colour: str = "RED"
+    password: Annotated[str, Query(min_length=8,max_length=72)]  # plain password
 
 class UserDB(User, table=True):
     hashed_password : str
