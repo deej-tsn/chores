@@ -6,15 +6,18 @@ import { BrowserRouter, Route } from 'react-router'
 import { Routes } from 'react-router'
 import Settings from './pages/Settings.tsx'
 import Login from './pages/Login.tsx'
+import { UserProvider } from './context/UserContext.ts'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <BrowserRouter>
-      <Routes>
-        <Route index element={<App/>}/>
-        <Route path='/settings' element={<Settings/>}/>
-        <Route path='/login' element={<Login/>}/>
-      </Routes>
-    </BrowserRouter>
+    <UserProvider>
+      <BrowserRouter>
+        <Routes>
+          <Route index element={<App/>}/>
+          <Route path='/settings' element={<Settings/>}/>
+          <Route path='/login' element={<Login/>}/>
+        </Routes>
+      </BrowserRouter>
+    </UserProvider>
   </StrictMode>,
 )
