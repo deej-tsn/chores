@@ -6,7 +6,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from fastapi.middleware.cors import CORSMiddleware
 from sqlmodel import select
 
-from utils.database.db import SessionDep, User, UserCreate, UserDB, create_db_and_tables, get_session
+from utils.database.db import SessionDep, User, UserCreate, UserDB, add_this_weeks_dates, create_db_and_tables, get_session
 
 from utils.auth.jwt import Token, TokenData, create_access_token, get_current_user
 from utils.auth.password import get_password_hash, verify_password
@@ -28,6 +28,7 @@ app.add_middleware(
 @app.on_event("startup")
 def on_startup():
     create_db_and_tables()
+    add_this_weeks_dates()
 
 @app.post("/token")
 async def login_for_access_token(session: SessionDep, user : OAuth2PasswordRequestForm = Depends()) -> Token:
@@ -79,4 +80,8 @@ def read_user(user_id: int, session: SessionDep) -> User:
     user = session.get(UserDB, user_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+    return user
+
+@app.get("/user")
+def get_user_from_token(user : TokenData = Depends(get_current_user)) -> TokenData:
     return user
