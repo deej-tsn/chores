@@ -1,6 +1,7 @@
 import datetime
 from enum import Enum
-from typing import Annotated, Literal
+from typing import Annotated
+from ..auth.password import get_password_hash
 from fastapi import Depends, Query
 from pydantic import BaseModel, EmailStr, constr
 from sqlmodel import Date, Field, Session, SQLModel, create_engine, select, UniqueConstraint
@@ -38,10 +39,14 @@ class Timetable(SQLModel, table=True):
     assigned : int | None = Field(default=None, foreign_key="userdb.id")
     __table_args__ = (UniqueConstraint("day" , "time", name='only_single_date_time'),)
 
-def add_this_weeks_dates():
+def get_last_monday() -> datetime.date:
     today = datetime.date.today()
-    days_ahead_last_monday = today.weekday()  # this Monday
-    last_monday = today - datetime.timedelta(days=days_ahead_last_monday)
+    days_ahead = today.weekday()  # Monday is 0
+    last_monday = today - datetime.timedelta(days=days_ahead)
+    return last_monday
+
+def add_this_weeks_dates():
+    last_monday = get_last_monday()
     this_week_days = [last_monday + datetime.timedelta(days=i) for i in range(7)]
 
     timetable_entries = [
@@ -67,8 +72,22 @@ def add_this_weeks_dates():
 
 # while in development testing
 def create_test_user():
-    pass
-
+    test_password = 'testing12345'
+    test_user = UserDB(
+        email="test@hotmail.com",
+        first_name="Test",
+        second_name="User",
+        colour="BLUE",
+        hashed_password=get_password_hash(test_password)
+    )
+    with Session(engine) as session:
+        existing_user = session.exec(
+            select(UserDB).where(UserDB.email == test_user.email)
+        ).first()
+        if not existing_user:
+            session.add(test_user)
+            session.commit()
+    
 sqlite_file_name = "database.db"
 sqlite_url = f"sqlite:///{sqlite_file_name}"
 

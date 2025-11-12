@@ -1,4 +1,5 @@
 
+from datetime import datetime, timedelta
 from typing import Annotated
 
 from fastapi import Depends, FastAPI, HTTPException, Query
@@ -6,7 +7,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from fastapi.middleware.cors import CORSMiddleware
 from sqlmodel import select
 
-from utils.database.db import SessionDep, User, UserCreate, UserDB, add_this_weeks_dates, create_db_and_tables, get_session
+from utils.database.db import SessionDep, Timetable, User, UserCreate, UserDB, add_this_weeks_dates, create_db_and_tables, get_last_monday, get_session, create_test_user
 
 from utils.auth.jwt import Token, TokenData, create_access_token, get_current_user
 from utils.auth.password import get_password_hash, verify_password
@@ -29,6 +30,7 @@ app.add_middleware(
 def on_startup():
     create_db_and_tables()
     add_this_weeks_dates()
+    create_test_user()
 
 @app.post("/token")
 async def login_for_access_token(session: SessionDep, user : OAuth2PasswordRequestForm = Depends()) -> Token:
@@ -85,3 +87,10 @@ def read_user(user_id: int, session: SessionDep) -> User:
 @app.get("/user")
 def get_user_from_token(user : TokenData = Depends(get_current_user)) -> TokenData:
     return user
+
+@app.get("/timetable")
+def get_timetable(session : SessionDep) -> list[Timetable]:
+    last_monday = get_last_monday()
+    this_week_data_statement = select(Timetable).where(Timetable.day >= last_monday).where(Timetable.day < last_monday + timedelta(days=7))
+    this_week_data = session.exec(this_week_data_statement).all()
+    return this_week_data
