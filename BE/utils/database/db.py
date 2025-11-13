@@ -39,6 +39,12 @@ class Timetable(SQLModel, table=True):
     assigned : int | None = Field(default=None, foreign_key="userdb.id")
     __table_args__ = (UniqueConstraint("day" , "time", name='only_single_date_time'),)
 
+class TimetablePublic(BaseModel):
+    id: int
+    day : datetime.date
+    time : TimeSlot
+    assigned : str | None
+
 def get_last_monday() -> datetime.date:
     today = datetime.date.today()
     days_ahead = today.weekday()  # Monday is 0

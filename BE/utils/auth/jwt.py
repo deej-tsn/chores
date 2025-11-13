@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta
-from fastapi import Depends, HTTPException
+from fastapi import Depends, HTTPException, Request
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from pydantic import BaseModel
@@ -33,12 +33,15 @@ def create_access_token(data: dict):
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
-def get_current_user(token: str = Depends(oauth2_scheme), session : Session = Depends(get_session)) -> TokenData:
+def get_current_user(request : Request, session : Session = Depends(get_session)) -> TokenData:
     credentials_exception = HTTPException(
         status_code=401,
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
+    token = request.cookies.get("access_token")
+    if token is None:
+        raise credentials_exception
     try:
         payload : dict[str, any]= jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         email: str = payload.get('sub')
