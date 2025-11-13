@@ -1,20 +1,48 @@
-type DayTime = {
-  Morning: string | undefined
-  Evening: string | undefined
+
+type Day = {
+  assignee : string | undefined
+  id : number
 }
 
-type TimeTableDict = {
+type DayTime = {
+  Morning: Day
+  Evening: Day
+}
+
+export type TimeTableDict = {
   [day: string]: DayTime
 }
 
 export const daysOfWeek = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 export const DefaultTimeTable: TimeTableDict = {
-  Monday: { Morning: undefined, Evening: undefined },
-  Tuesday: { Morning: undefined, Evening: undefined },
-  Wednesday: { Morning: undefined, Evening: undefined },
-  Thursday: { Morning: undefined, Evening: undefined },
-  Friday: { Morning: undefined, Evening: undefined },
-  Saturday: { Morning: undefined, Evening: undefined },
-  Sunday: { Morning: undefined, Evening: undefined },
+  Monday: { Morning: {assignee:undefined, id:-1}, Evening: {assignee:undefined, id:-1} },
+  Tuesday: { Morning:{assignee:undefined, id:-1}, Evening: {assignee:undefined, id:-1} },
+  Wednesday: { Morning: {assignee:undefined, id:-1}, Evening: {assignee:undefined, id:-1} },
+  Thursday: { Morning: {assignee:undefined, id:-1}, Evening: {assignee:undefined, id:-1} },
+  Friday: { Morning: {assignee:undefined, id:-1}, Evening: {assignee:undefined, id:-1}},
+  Saturday: { Morning: {assignee:undefined, id:-1}, Evening: {assignee:undefined, id:-1} },
+  Sunday: { Morning: {assignee:undefined, id:-1}, Evening: {assignee:undefined, id:-1} },
+}
+
+type DataTimeTable = {
+  id: number
+  time : "Morning" | "Evening"
+  day : Date
+  assigned : string | null
+}
+
+export function convertDataToTimeTableType(data : DataTimeTable[]){
+  const timetable : TimeTableDict = {}
+
+  dayNames.forEach(weekDay => {
+    timetable[weekDay] = {Morning : {assignee:undefined, id:-1}, Evening : {assignee:undefined, id:-1}}
+  })
+
+  data.forEach((date) => {
+    const weekday = dayNames[new Date(date.day).getDay()]
+    timetable[weekday][date.time] = {assignee : date.assigned?? undefined, id:date.id}
+  })
+  return timetable
 }

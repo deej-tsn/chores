@@ -1,6 +1,5 @@
 import { useContext } from "react"
 import { UserContext } from "../context/UserContext"
-import type { Token } from "../types/user"
 import { Navigate } from "react-router"
 
 export default function Login(){
@@ -10,12 +9,14 @@ export default function Login(){
     function submitLogin(event : React.FormEvent<HTMLFormElement>){
         event.preventDefault()
         const data = new FormData(event.target as HTMLFormElement)
-        fetch('http://127.0.0.1:8000/token', {
+        fetch('https://local.app.com:8000/token', {
             method: 'POST',
-            body: data
+            body: data,
+            credentials: 'include'
         }).then(
-            (res) => res.json()).then(
-            (data : Token ) => setAccessToken(data)).catch(
+            (res) => {
+                if(res.ok) setAccessToken(true)
+            }).catch(
             (error) => console.error(error)
         )
     }
