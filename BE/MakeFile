@@ -1,0 +1,4 @@
+run : 
+	python -m uvicorn main:app --reload --host local.app.com --port 8000 \
+    --ssl-keyfile ./local_cert/local.app.com-key.pem \
+    --ssl-certfile ./local_cert/local.app.com.pem
