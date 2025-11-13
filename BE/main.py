@@ -100,6 +100,11 @@ def read_user(user_id: int, session: SessionDep) -> User:
 def get_user_from_token(user : TokenData = Depends(get_current_user)) -> TokenData:
     return user
 
+@app.get("/logout")
+def logout(response: Response):
+    response.delete_cookie(key="access_token", path="/")
+    return {'message' : 'logged out'}
+
 @app.get("/timetable")
 def get_timetable(session : SessionDep) -> list[TimetablePublic]:
     last_monday = get_last_monday()

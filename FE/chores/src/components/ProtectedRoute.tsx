@@ -15,10 +15,12 @@ export default function ProtectedRoute({ redirectPath = "/login" }: ProtectedRou
     }
 
     return (
-        <div className=' w-screen h-screen bg-amber-50 items-center justify-center relative flex flex-col'>
+        <div className=' w-screen bg-amber-50 items-center justify-center relative flex flex-col'>
             <Navbar user={user}/>
+            <div className=" w-full flex flex-col items-center justify-center mt-24 overflow-auto">
+                <Outlet />
+            </div>
 
-            <Outlet/>
         </div>
     ) 
 };

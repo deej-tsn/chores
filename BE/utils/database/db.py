@@ -45,6 +45,11 @@ class TimetablePublic(BaseModel):
     time : TimeSlot
     assigned : str | None
 
+class TimetableData(BaseModel):
+    weekStart : datetime.date
+    timetable : list[TimetablePublic]
+
+
 def get_last_monday() -> datetime.date:
     today = datetime.date.today()
     days_ahead = today.weekday()  # Monday is 0

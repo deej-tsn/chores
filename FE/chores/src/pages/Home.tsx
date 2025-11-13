@@ -50,7 +50,7 @@ function Home() {
     <img src={luka}/>
     <div className="w-11/12 h-fit bg-amber-500 p-5 rounded-4xl drop-shadow-2xl">
       <div className="w-full flex flex-row mb-2 font-bold text-2xl text-gray-50">
-        <h1 className=" grow">{(new Date()).toLocaleDateString()}</h1>
+        <h1 className=" grow">Week: {(new Date()).toLocaleDateString()}</h1>
         {daysToAssign > 0 ?
           <h1>Days to Assign : {daysToAssign}</h1>
           :

@@ -2,6 +2,7 @@ import { useContext } from "react"
 import { editPanelContext } from "../context/EditContext"
 import { convertDataToTimeTableType, type TimeTableDict } from "../utils/timetable"
 import { UserContext } from "../context/UserContext"
+import { MdCancel } from "react-icons/md";
 
 interface EditPanelProps {
     setTimetable : (data : TimeTableDict) => void
@@ -45,11 +46,11 @@ export default function EditPanel({setTimetable} : EditPanelProps){
         <>
             <div className="w-screen h-screen backdrop-blur-sm absolute top-0 left-0 z-10"></div>
             <div className="z-20 w-11/12 md:w-96 h-fit absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-amber-500 rounded-4xl drop-shadow-2xl p-5">
-                <button className=" cursor-pointer font-bold text-2xl text-amber-50 mb-2 transition-colors hover:text-gray-400" onClick={() => setEditPanelState(undefined)}>X</button>
+                <button className=" cursor-pointer font-bold text-2xl text-amber-50 mb-2 transition-colors hover:text-gray-400" onClick={() => setEditPanelState(undefined)}><MdCancel/></button>
                 <form className="w-full flex items-center flex-col" onSubmit={patchDay}>
                     <div className="w-full flex items-center justify-center">
                         <h1 className=" text-xl font-bold text-amber-50">Assign To:</h1>
-                        <select className="ml-2 bg-amber-50 cursor-pointer" id='assign' name="assign">
+                        <select className="ml-2 bg-amber-50 cursor-pointer py-1 px-2 rounded-2xl" id='assign' name="assign">
                             <option value="">Unassigned</option>
                             <option value={user?.first_name}>{user?.first_name}</option>
                         </select>

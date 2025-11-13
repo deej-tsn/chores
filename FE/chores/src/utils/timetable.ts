@@ -13,6 +13,11 @@ export type TimeTableDict = {
   [day: string]: DayTime
 }
 
+export type TimetableDate = {
+  weekStart : Date
+  timetable : TimeTableDict
+}
+
 export const daysOfWeek = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
