@@ -14,7 +14,7 @@ export default defineConfig({
       key: fs.readFileSync(path.resolve(__dirname, 'local_cert','local.app.com-key.pem')),
       cert: fs.readFileSync(path.resolve(__dirname,  'local_cert','local.app.com.pem')),
     },
-    host: 'local.app.com',  // important so Vite binds to your domain
+    host: '0.0.0.0',  // important so Vite binds to your domain
     port: 5173,             // default Vite port, change if needed
   },
 });

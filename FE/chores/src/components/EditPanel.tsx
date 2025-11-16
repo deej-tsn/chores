@@ -44,7 +44,7 @@ export default function EditPanel({setTimetable} : EditPanelProps){
 
     return( 
         <>
-            <div className="w-screen h-screen backdrop-blur-sm absolute top-0 left-0 z-10"></div>
+            <div className="w-screen h-full backdrop-blur-sm absolute top-0 left-0 z-10"></div>
             <div className="z-20 w-11/12 md:w-96 h-fit absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-amber-500 rounded-4xl drop-shadow-2xl p-5">
                 <button className=" cursor-pointer font-bold text-2xl text-amber-50 mb-2 transition-colors hover:text-gray-400" onClick={() => setEditPanelState(undefined)}><MdCancel/></button>
                 <form className="w-full flex items-center flex-col" onSubmit={patchDay}>
