@@ -1,31 +1,50 @@
-import { useContext } from "react"
-import { editPanelContext } from "../context/EditContext"
-import { UserContext } from "../context/UserContext"
+import { useContext } from "react";
+import { editPanelContext } from "../context/EditContext";
+import { UserContext } from "../context/UserContext";
 
 interface DayCellProps {
-    day : string
-    time : "Morning"|"Evening"
-    assigned : string | undefined
-    id : number
+  day: string;
+  time: "Morning" | "Evening";
+  assigned: string | undefined;
+  id: number;
+  bgAssigned?: string; // optional props for theme
+  bgEmpty?: string;
+  textColor?: string;
 }
 
+export default function DayCell({
+  day,
+  time,
+  assigned,
+  id,
+  bgAssigned = "#FFE8C4",
+  bgEmpty = "#FFF8F2",
+  textColor = "#3A2F2F",
+}: DayCellProps) {
+  const { setEditPanelState } = useContext(editPanelContext);
+  const { user } = useContext(UserContext);
 
-export default function DayCell({day, time, assigned, id} : DayCellProps){
-    const assigned_class = "bg-amber-800"
-    const unassigned_class = "bg-amber-600 transition-colors hover:bg-amber-700"
+  function editDay() {
+    if (!assigned || user?.first_name === assigned) setEditPanelState(id);
+  }
 
-    const {setEditPanelState} = useContext(editPanelContext)
-    const {user} = useContext(UserContext)
-
-    function editDay(){
-        if(!assigned || user?.first_name === assigned) setEditPanelState(id)
-    }
-    
-    return (
-        <div onClick={() => editDay()} className={`w-full h-full rounded-4xl p-2 flex items-center justify-center flex-col font-bold text-gray-100 cursor-pointer ${assigned? assigned_class : unassigned_class}`}>
-            <h1>{`${day} - ${time}`}</h1>
-
-            <h2>{assigned ?? 'Unassigned'}</h2>
-        </div>
-    )
+  return (
+    <div
+      onClick={editDay}
+      className={`
+        w-full h-full rounded-2xl p-3 flex flex-col items-center justify-center font-bold cursor-pointer
+        transition-colors duration-200 ease-in-out
+        ${assigned ? "shadow-md" : "shadow-sm hover:shadow-md"}
+      `}
+      style={{
+        backgroundColor: assigned ? bgAssigned : bgEmpty,
+        color: textColor,
+      }}
+    >
+      <h1 className="text-sm md:text-base">{`${day} - ${time}`}</h1>
+      <h2 className="text-sm md:text-base font-medium">
+        {assigned ?? "Unassigned"}
+      </h2>
+    </div>
+  );
 }

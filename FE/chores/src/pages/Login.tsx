@@ -1,26 +1,17 @@
 import { useContext, useState } from "react"
 import { UserContext } from "../context/UserContext"
-import { Navigate } from "react-router"
-import { Button, FilledInput, FormControl, FormHelperText, IconButton, InputAdornment, InputLabel, OutlinedInput, TextField, Typography } from "@mui/material"
-import Visibility from '@mui/icons-material/Visibility';
-import VisibilityOff from '@mui/icons-material/VisibilityOff';
+import { Link, Navigate } from "react-router"
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Eye, EyeOff, PawPrint } from "lucide-react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function Login(){
 
-    const {setToken: setAccessToken, user} = useContext(UserContext)
+    const {token, setToken: setAccessToken, user} = useContext(UserContext)
     const [showPassword, setShowPassword] = useState(false);
     const [resError, setError] = useState("")
-
-    const handleClickShowPassword = () => setShowPassword((show) => !show);
-
-    const handleMouseDownPassword = (event: React.MouseEvent<HTMLButtonElement>) => {
-        event.preventDefault();
-    };
-
-    const handleMouseUpPassword = (event: React.MouseEvent<HTMLButtonElement>) => {
-        event.preventDefault();
-    };
-
+    
     async function submitLogin(event : React.FormEvent<HTMLFormElement>){
         event.preventDefault()
         const data = new FormData(event.target as HTMLFormElement)
@@ -30,7 +21,7 @@ export default function Login(){
             credentials: 'include'
         })
         if(res.ok){
-            setAccessToken(true)
+            setAccessToken(!token)
             return
         }
 
@@ -52,39 +43,63 @@ export default function Login(){
     }
 
     return (
-        <div className=' w-screen h-screen bg-gray-100 flex items-center justify-center p-1'>
-            <form onSubmit={submitLogin} className="w-full h-96 md:w-lg md:h-96 rounded-2xl drop-shadow-2xl bg-gray-50 p-5 flex items-center flex-col justify-evenly">
-                <Typography variant='h2'>Login</Typography>
-                <TextField className="w-1/2" variant="outlined" label="Email" id="email" name="username" type="email" error={!!resError} helperText={resError} required/>
-                <FormControl className=" w-1/2" variant="outlined">
-                    <InputLabel htmlFor="filled-adornment-password">Password</InputLabel>
-                    <OutlinedInput
-                        id="outlined-adornment-password"
-                        type={showPassword ? 'text' : 'password'}
-                        name="password"
-                        error={!!resError}
+        <div className="w-screen h-screen bg-[#FFF8F2] flex items-center justify-center p-4 ">
+            <Card className="w-full max-w-md rounded-3xl shadow-xl border-none bg-white animate-fade-up animate-duration-500 animate-ease-in-out">
+                <CardHeader className="text-center space-y-2 animate-in fade-in duration-500">
+                <div className="flex justify-center">
+                    <PawPrint className="w-12 h-12 text-[#E59D50]" />
+                </div>
+                <CardTitle className="text-3xl font-bold text-[#3A2F2F]">Welcome Back</CardTitle>
+                <CardDescription className="text-[#6A5F5D]">
+                    Log in to see your scheduled walks and happy pups.
+                </CardDescription>
+                </CardHeader>
+
+                <CardContent className="space-y-5 animate-in fade-in duration-500">
+                <form onSubmit={submitLogin} className="space-y-5">
+                    {/* Email */}
+                    <div className="space-y-1">
+                    <Input
+                        id="email"
+                        name="username"
+                        type="email"
+                        placeholder="Enter your email"
                         required
-                        endAdornment={
-                        <InputAdornment position="end">
-                            <IconButton
-                            aria-label={
-                                showPassword ? 'hide the password' : 'display the password'
-                            }
-                            onClick={handleClickShowPassword}
-                            onMouseDown={handleMouseDownPassword}
-                            onMouseUp={handleMouseUpPassword}
-                            edge="end"
-                            >
-                            {showPassword ? <VisibilityOff /> : <Visibility />}
-                            </IconButton>
-                        </InputAdornment>
-                        }
-                        label="Password"
+                        className={`bg-[#FFF8F2] border-[#FFD7A8] focus:border-[#E59D50] ${resError && "border-red-500"}`}
                     />
-                    {!!resError && <FormHelperText id="outlined-helper-text" variant='outlined' error>{resError}</FormHelperText>}
-                </FormControl>
-                <Button type="submit" className="w-1/2 p-2" variant='contained'>Login</Button>
-            </form>
+                    </div>
+
+                    {/* Password */}
+                    <div className="relative space-y-1">
+                    <Input
+                        id="password"
+                        name="password"
+                        type={showPassword ? "text" : "password"}
+                        placeholder="Enter your password"
+                        required
+                        className={`bg-[#FFF8F2] border-[#FFD7A8] focus:border-[#E59D50] pr-11 ${resError && "border-red-500"}`}
+                    />
+                    <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-600 hover:text-gray-800">
+                        {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                    </button>
+                    </div>
+
+                    {/* Error */}
+                    {resError && (
+                    <p className="text-red-600 text-sm text-center mt-1">{resError}</p>
+                    )}
+
+                    {/* Submit */}
+                    <Button type="submit" className="w-full py-3 text-md font-semibold rounded-xl bg-[#FFB974] hover:bg-[#E59D50] text-[#3A2F2F] shadow-md">
+                    Login
+                    </Button>
+                </form>
+
+                <p className="text-center text-sm text-[#6A5F5D]">
+                    Don’t have an account? <Link className="text-[#E59D50] font-medium" to={'/sign-up'}>Sign up</Link>
+                </p>
+                </CardContent>
+            </Card>
         </div>
-    )
+        );
 }

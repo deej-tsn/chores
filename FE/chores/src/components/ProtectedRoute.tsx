@@ -9,18 +9,18 @@ type ProtectedRouteProps = {
 
 export default function ProtectedRoute({ redirectPath = "/login" }: ProtectedRouteProps) {
     const {user} = useContext(UserContext)
+    
 
     if (!user) {
         return <Navigate to={redirectPath} replace />;
     }
 
     return (
-        <div className=' w-screen min-h-screen bg-amber-50 items-center justify-center relative flex flex-col'>
-            <Navbar user={user}/>
-            <div className=" w-full flex flex-col items-center justify-center mt-24 overflow-auto">
+        <div className="w-screen min-h-screen bg-[#FFF8F2] flex flex-col items-center">
+            <Navbar user={user} />
+            <main className="w-full mt-24 p-4 gap-6">
                 <Outlet />
-            </div>
-
+            </main>
         </div>
     ) 
 };

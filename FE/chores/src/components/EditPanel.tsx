@@ -1,63 +1,85 @@
-import { useContext } from "react"
-import { editPanelContext } from "../context/EditContext"
-import { convertDataToTimeTableType, type TimeTableDict } from "../utils/timetable"
-import { UserContext } from "../context/UserContext"
+import { useContext } from "react";
+import { editPanelContext } from "../context/EditContext";
+import { convertDataToTimeTableType, type TimeTableDict } from "../utils/timetable";
+import { UserContext } from "../context/UserContext";
 import { MdCancel } from "react-icons/md";
 
 interface EditPanelProps {
-    setTimetable : (data : TimeTableDict) => void
+  setTimetable: (data: TimeTableDict) => void;
 }
 
-export default function EditPanel({setTimetable} : EditPanelProps){
-    const {showEditPanel,setEditPanelState} = useContext(editPanelContext)
-    const {user} = useContext(UserContext)
+export default function EditPanel({ setTimetable }: EditPanelProps) {
+  const { showEditPanel, setEditPanelState } = useContext(editPanelContext);
+  const { user } = useContext(UserContext);
 
-    function patchDay(event : React.FormEvent){
-        event.preventDefault()
-        const formData = new FormData(event.target as HTMLFormElement)
-        let data : {dayID : number, assign_to_self? : boolean}=  {dayID : showEditPanel?? -1 }
-        if(formData.get('assign') !== ""){
-            data = {assign_to_self : true, ...data}
-        }
-        console.log(data)
-        console.log(formData.get('assign'))
-        fetch(`https://local.app.com:8000/timetable/`, {
-            method: 'PATCH',
-            credentials : 'include',
-            headers : {
-                'Content-Type': 'application/json',
-            },
-            body : JSON.stringify(data)
-        }).then(res => {
-            if (!res.ok) throw new Error(`HTTP error ${res.status}`);
-            return res.json();
-        })
-        .then(data => {
-            const timetable = convertDataToTimeTableType(data);
-            setTimetable(timetable);
-            setEditPanelState(undefined)
-        })
-        .catch(console.error);
+  async function patchDay(event: React.FormEvent) {
+    event.preventDefault();
+    const formData = new FormData(event.target as HTMLFormElement);
+
+    let data: { dayID: number; assign_to_self?: boolean } = {
+      dayID: showEditPanel ?? -1,
+    };
+
+    if (formData.get("assign") !== "") {
+      data = { assign_to_self: true, ...data };
     }
 
-    if(!showEditPanel) return
+    try {
+      const res = await fetch(`https://local.app.com:8000/timetable/`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
 
-    return( 
-        <>
-            <div className="w-screen h-full backdrop-blur-sm absolute top-0 left-0 z-10"></div>
-            <div className="z-20 w-11/12 md:w-96 h-fit absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-amber-500 rounded-4xl drop-shadow-2xl p-5">
-                <button className=" cursor-pointer font-bold text-2xl text-amber-50 mb-2 transition-colors hover:text-gray-400" onClick={() => setEditPanelState(undefined)}><MdCancel/></button>
-                <form className="w-full flex items-center flex-col" onSubmit={patchDay}>
-                    <div className="w-full flex items-center justify-center">
-                        <h1 className=" text-xl font-bold text-amber-50">Assign To:</h1>
-                        <select className="ml-2 bg-amber-50 cursor-pointer py-1 px-2 rounded-2xl" id='assign' name="assign">
-                            <option value="">Unassigned</option>
-                            <option value={user?.first_name}>{user?.first_name}</option>
-                        </select>
-                    </div>
-                    <button className=" bg-amber-50 border border-amber-500 text-amber-500 px-5 py-2 rounded-2xl m-2 transition-all font-bold hover:bg-amber-500 hover:border-amber-50 hover:text-amber-50" type="submit">Update</button>
-                </form>
-            </div>
-        </>
-    )
+      if (!res.ok) throw new Error(`HTTP error ${res.status}`);
+      const updatedData = await res.json();
+      setTimetable(convertDataToTimeTableType(updatedData));
+      setEditPanelState(undefined);
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  if (!showEditPanel) return null;
+
+  return (
+    <>
+      {/* Backdrop */}
+        <div className="fixed top-0 left-0 w-screen h-screen z-10 backdrop-blur-sm bg-black/20"></div>
+
+      {/* Panel */}
+      <div className="z-20 w-11/12 md:w-96 h-fit absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white rounded-3xl shadow-xl p-6 animate-fadeIn flex flex-col gap-4">
+        {/* Close button */}
+        <button
+          className="self-end text-2xl text-[#E59D50] font-bold hover:text-[#FFB974] transition-colors"
+          onClick={() => setEditPanelState(undefined)}
+        >
+          <MdCancel />
+        </button>
+
+        {/* Form */}
+        <form className="flex flex-col items-center gap-4 w-full" onSubmit={patchDay}>
+          <div className="flex flex-col w-full items-center gap-2">
+            <h1 className="text-xl font-bold text-[#3A2F2F]">Assign To:</h1>
+            <select
+              id="assign"
+              name="assign"
+              className="w-full bg-[#FFF8F2] text-[#3A2F2F] py-2 px-3 rounded-2xl border border-[#FFD7A8] cursor-pointer focus:outline-none focus:border-[#E59D50] transition-colors"
+            >
+              <option value="">Unassigned</option>
+              <option value={user?.first_name}>{user?.first_name}</option>
+            </select>
+          </div>
+
+          <button
+            type="submit"
+            className="w-full bg-[#FFB974] text-[#3A2F2F] font-bold py-2 rounded-2xl shadow-md hover:bg-[#E59D50] hover:text-[#FFF8F2] transition-colors"
+          >
+            Update
+          </button>
+        </form>
+      </div>
+    </>
+  );
 }

@@ -2,7 +2,7 @@
 from datetime import timedelta
 from typing import Annotated
 
-from fastapi import Depends, FastAPI, HTTPException, Query, Response
+from fastapi import Depends, FastAPI, Form, HTTPException, Query, Response
 from fastapi.security import OAuth2PasswordRequestForm
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -59,7 +59,7 @@ async def login_for_access_token(response: Response, session: SessionDep, user :
     return {'message' : 'token returned in cookie'}
 
 @app.post("/users/")
-def create_user(user: UserCreate, session: SessionDep) -> User:
+def create_user(response:Response, user: Annotated[UserCreate, Form()], session: SessionDep) -> User:
     existing_user = session.exec(select(UserDB).where(UserDB.email == user.email)).first()
     if existing_user:
         raise HTTPException(status_code=400, detail="Email already registered")
@@ -69,13 +69,30 @@ def create_user(user: UserCreate, session: SessionDep) -> User:
     db_user = UserDB(
         email=user.email,
         first_name=user.first_name,
-        second_name=user.second_name,
+        second_name=user.surename,
         colour=user.colour,
         hashed_password=hashed_password
     )
     session.add(db_user)
     session.commit()
     session.refresh(db_user)
+
+    access_token = create_access_token(data={
+        "sub": db_user.email,
+        "first_name": db_user.first_name,
+        "second_name":db_user.second_name,
+        "colour":db_user.colour
+    })
+
+    response.set_cookie(
+        key="access_token",
+        value=access_token,
+        httponly=True,
+        secure=True,
+        samesite="none",
+        max_age=3600,
+        path="/",
+    )
 
     return db_user
 

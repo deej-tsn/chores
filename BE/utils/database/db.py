@@ -1,6 +1,6 @@
 import datetime
 from enum import Enum
-from typing import Annotated
+from typing import Annotated, Optional
 from ..auth.password import get_password_hash
 from fastapi import Depends, Query
 from pydantic import BaseModel, EmailStr, constr
@@ -17,8 +17,8 @@ class User(SQLModel):
 class UserCreate(BaseModel):
     email: EmailStr
     first_name: str
-    second_name: str
-    colour: str = "RED"
+    surename: str
+    colour: Optional[str] = "RED"
     password: Annotated[str, Query(min_length=8,max_length=72)]
 
 class UserDB(User, table=True):

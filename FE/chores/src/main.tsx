@@ -9,6 +9,7 @@ import Login from './pages/Login.tsx'
 import { UserProvider } from './context/UserContext.ts'
 import ProtectedRoute from './components/ProtectedRoute.tsx'
 import { EditPanelProvider } from './context/EditContext.ts'
+import SignUp from './pages/SignUp.tsx'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -23,6 +24,7 @@ createRoot(document.getElementById('root')!).render(
               </Route>
 
               <Route path='/login' element={<Login/>}/>
+              <Route path='/sign-up'  element={<SignUp/>}/>
             </Routes>
           </BrowserRouter>
         </EditPanelProvider>

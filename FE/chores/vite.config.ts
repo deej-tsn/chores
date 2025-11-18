@@ -9,6 +9,11 @@ export default defineConfig({
     react(),
     tailwindcss()
   ],
+  resolve: {
+  alias: {
+    "@": path.resolve(__dirname, "./src"),
+  },
+  },
   server: {
     https: {
       key: fs.readFileSync(path.resolve(__dirname, 'local_cert','local.app.com-key.pem')),

@@ -14,12 +14,15 @@ const displayUserName = (user: User) => (user.first_name.charAt(0) + user.second
 
 export default function Navbar({user} : NavbarProps){
     return (
-        <nav className=" w-11/12 p-2 max-w-full rounded-4xl drop-shadow-2xl box-content h-12 fixed top-5 bg-amber-500 flex z-20">
-            <div className="h-full flex items-center grow">
-                <NavLink path="/home" label="Home"/>
-                <NavLink path="/settings" label="Settings"/>
+        <nav className="w-11/12 h-16 p-2 max-w-full rounded-3xl shadow-lg fixed top-5 bg-[#E59D50] flex z-20">
+            <div className="h-full flex items-center grow gap-4">
+                <NavLink path="/home" label="Home" />
+                <NavLink path="/settings" label="Settings" />
             </div>
-            <div id="userProfile" className="h-full aspect-square rounded-full flex items-center justify-center bg-amber-600 cursor-pointer transition-colors hover:bg-amber-700 font-bold text-gray-100">
+            <div
+                id="userProfile"
+                className="h-full aspect-square rounded-full flex items-center justify-center bg-[#FFB974] cursor-pointer transition-colors hover:bg-[#E59D50] font-bold text-[#FFF8F2]"
+            >
                 {displayUserName(user)}
             </div>
         </nav>
