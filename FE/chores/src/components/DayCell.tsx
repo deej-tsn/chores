@@ -41,7 +41,8 @@ export default function DayCell({
         color: textColor,
       }}
     >
-      <h1 className="text-sm md:text-base">{`${day} - ${time}`}</h1>
+      <h1 className="text-sm md:text-base">{`${day}`}</h1>
+      <h1 className="text-sm md:text-base">{`${time}`}</h1>
       <h2 className="text-sm md:text-base font-medium">
         {assigned ?? "Unassigned"}
       </h2>
