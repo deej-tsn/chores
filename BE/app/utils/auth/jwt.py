@@ -5,7 +5,7 @@ from jose import JWTError, jwt
 from pydantic import BaseModel
 from sqlmodel import Session, select
 
-from utils.database.db import User, UserDB, get_session
+from ..database.db import User, UserDB, get_session
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/token")
 

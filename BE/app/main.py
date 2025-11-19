@@ -8,10 +8,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sqlmodel import select, update
 
-from utils.database.db import SessionDep, Timetable, TimetablePublic, User, UserCreate, UserDB, add_this_weeks_dates, create_db_and_tables, get_last_monday, create_test_user
+from .utils.database.db import SessionDep, Timetable, TimetablePublic, User, UserCreate, UserDB, add_this_weeks_dates, create_db_and_tables, get_last_monday, create_test_user
 
-from utils.auth.jwt import TokenData, create_access_token, get_current_user
-from utils.auth.password import get_password_hash, verify_password
+from .utils.auth.jwt import TokenData, create_access_token, get_current_user
+from .utils.auth.password import get_password_hash, verify_password
 
 origins = [
     "https://local.app.com:5173"

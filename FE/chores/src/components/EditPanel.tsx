@@ -49,7 +49,7 @@ export default function EditPanel({ setTimetable }: EditPanelProps) {
         <div className="fixed top-0 left-0 w-screen h-screen z-10 backdrop-blur-sm bg-black/20"></div>
 
       {/* Panel */}
-      <div className="z-20 w-11/12 md:w-96 h-fit absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white rounded-3xl shadow-xl p-6 animate-fadeIn flex flex-col gap-4">
+      <div className="z-20 w-11/12 md:w-96 h-fit fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white rounded-3xl shadow-xl p-6 animate-fadeIn flex flex-col gap-4">
         {/* Close button */}
         <button
           className="self-end text-2xl text-[#E59D50] font-bold hover:text-[#FFB974] transition-colors"
