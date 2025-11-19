@@ -8,3 +8,6 @@ env/
 
 database.db
 build
+
+.venv/
+.vscode/
