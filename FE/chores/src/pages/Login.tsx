@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Eye, EyeOff, PawPrint } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { fetchURL } from "@/utils/fetch";
 
 export default function Login(){
 
@@ -15,7 +16,7 @@ export default function Login(){
     async function submitLogin(event : React.FormEvent<HTMLFormElement>){
         event.preventDefault()
         const data = new FormData(event.target as HTMLFormElement)
-        const res  = await fetch('https://local.app.com:8000/token', {
+        const res  = await fetch(fetchURL('/token'), {
             method: 'POST',
             body: data,
             credentials: 'include'

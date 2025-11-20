@@ -3,6 +3,7 @@ import { editPanelContext } from "../context/EditContext";
 import { convertDataToTimeTableType, type TimeTableDict } from "../utils/timetable";
 import { UserContext } from "../context/UserContext";
 import { MdCancel } from "react-icons/md";
+import { fetchURL } from "@/utils/fetch";
 
 interface EditPanelProps {
   setTimetable: (data: TimeTableDict) => void;
@@ -25,7 +26,7 @@ export default function EditPanel({ setTimetable }: EditPanelProps) {
     }
 
     try {
-      const res = await fetch(`https://local.app.com:8000/timetable/`, {
+      const res = await fetch(fetchURL('/timetable'), {
         method: "PATCH",
         credentials: "include",
         headers: { "Content-Type": "application/json" },

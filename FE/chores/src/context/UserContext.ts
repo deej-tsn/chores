@@ -25,7 +25,7 @@ function UserProvider({ children }: { children: ReactNode }) {
     useEffect(() => {
     async function getUserInfo() {
         try {
-            const res = await fetch("https://local.app.com:8000/user", {
+            const res = await fetch(fetchURL('/user'), {
                 method: "GET",
                 credentials: "include", // ensures cookie is sent
             });

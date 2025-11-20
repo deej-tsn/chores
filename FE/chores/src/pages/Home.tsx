@@ -5,6 +5,7 @@ import DayCell from "../components/DayCell"
 import luka from "../assets/image.png"
 import EditPanel from "../components/EditPanel"
 import { Card } from "@/components/ui/card"
+import { fetchURL } from "@/utils/fetch"
 
 function Home() {
   const {user} = useContext(UserContext)
@@ -24,7 +25,7 @@ function Home() {
 
   useEffect(() => {
     async function getTimetable() {
-      fetch('https://local.app.com:8000/timetable', {
+      fetch(fetchURL('/timetable'), {
       method : 'GET',
       credentials : 'include'
       }).then((res) => res.json()).then((data) => {

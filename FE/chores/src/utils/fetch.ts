@@ -1,9 +1,3 @@
-export async function fetchWithRedirect(url : string, opts? : any){
-    const res = await fetch(url, opts)
+const API_BASE = import.meta.env.VITE_API_BASE;
 
-    if(!res.ok){
-        if (res.status == 500) {
-            console.error("Server Error")
-        }
-    }
-}
+export const fetchURL = (url: string) => `${API_BASE}/${url.startsWith('/') ? url.slice(1) : url}`;

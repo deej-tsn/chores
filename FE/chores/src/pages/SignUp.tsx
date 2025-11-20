@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { PawPrint, Eye, EyeOff } from "lucide-react";
 import { UserContext } from "@/context/UserContext";
 import { Link, Navigate } from "react-router";
+import { fetchURL } from "@/utils/fetch";
 
 interface SignUpFormData {
   first_name: string;
@@ -40,7 +41,7 @@ export default function SignUp() {
         formData.append("email", data.email);
         formData.append("password", data.password);
 
-        const res = await fetch("https://local.app.com:8000/users", {
+        const res = await fetch(fetchURL('/users'), {
             method: "POST",
             body: formData,
         });
