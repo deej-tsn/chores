@@ -1,6 +1,7 @@
 import { createContext, createElement, useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import type {  TokenData, User } from "../types/user";
+import { fetchURL } from "@/utils/fetch";
 
 type UserContextType = {
     user: User | undefined;
