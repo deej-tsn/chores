@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sqlmodel import select, update
 
-from .utils.database.db import SessionDep, Timetable, TimetablePublic, User, UserCreate, UserDB, add_this_weeks_dates, create_db_and_tables, get_last_monday, create_test_user
+from .utils.database.db import SessionDep, Timetable, TimetableData, TimetablePublic, User, UserCreate, UserDB, add_this_weeks_dates, create_db_and_tables, get_last_monday, create_test_user
 
 from .utils.auth.jwt import TokenData, create_access_token, get_current_user
 from .utils.auth.password import get_password_hash, verify_password
@@ -125,22 +125,23 @@ def logout(response: Response):
     return {'message' : 'logged out'}
 
 @app.get("/timetable")
-def get_timetable(session : SessionDep) -> list[TimetablePublic]:
+def get_timetable(session : SessionDep) -> TimetableData:
     last_monday = get_last_monday()
     this_week_data_statement = select(Timetable, UserDB).join(UserDB, isouter=True).where(Timetable.day >= last_monday).where(Timetable.day < last_monday + timedelta(days=7))
     this_week_data = session.exec(this_week_data_statement).all()
-    result = []
+    timetable = []
     for (date,user) in this_week_data:
         name = None
         if(user):
             name = user.first_name
-        result.append(TimetablePublic(
+        timetable.append(TimetablePublic(
             id=date.id,
             day=date.day,
             time=date.time,
             assigned=name
         ))
-    return result
+    data = TimetableData(weekStart=last_monday, timetable=timetable)
+    return data
 
 class UpdateTimetableRequest(BaseModel):
     dayID : int

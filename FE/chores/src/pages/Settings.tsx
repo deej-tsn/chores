@@ -1,7 +1,3 @@
-export default function Settings(){
-    return (
-        <>
-            Settings
-        </>
-    )
+export default function Settings() {
+  return <>Settings</>;
 }

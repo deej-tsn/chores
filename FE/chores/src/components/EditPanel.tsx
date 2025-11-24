@@ -1,12 +1,15 @@
 import { useContext } from "react";
 import { editPanelContext } from "../context/EditContext";
-import { convertDataToTimeTableType, type TimeTableDict } from "../utils/timetable";
+import {
+  convertDataToTimeTableType,
+  type TimetableData,
+} from "../utils/timetable";
 import { UserContext } from "../context/UserContext";
 import { MdCancel } from "react-icons/md";
 import { fetchURL } from "@/utils/fetch";
 
 interface EditPanelProps {
-  setTimetable: (data: TimeTableDict) => void;
+  setTimetable: (data: TimetableData) => void;
 }
 
 export default function EditPanel({ setTimetable }: EditPanelProps) {
@@ -26,7 +29,7 @@ export default function EditPanel({ setTimetable }: EditPanelProps) {
     }
 
     try {
-      const res = await fetch(fetchURL('/timetable'), {
+      const res = await fetch(fetchURL("/timetable"), {
         method: "PATCH",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -47,7 +50,7 @@ export default function EditPanel({ setTimetable }: EditPanelProps) {
   return (
     <>
       {/* Backdrop */}
-        <div className="fixed top-0 left-0 w-screen h-screen z-10 backdrop-blur-sm bg-black/20"></div>
+      <div className="fixed top-0 left-0 w-screen h-screen z-10 backdrop-blur-sm bg-black/20"></div>
 
       {/* Panel */}
       <div className="z-20 w-11/12 md:w-96 h-fit fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white rounded-3xl shadow-xl p-6 animate-fadeIn flex flex-col gap-4">
@@ -60,7 +63,10 @@ export default function EditPanel({ setTimetable }: EditPanelProps) {
         </button>
 
         {/* Form */}
-        <form className="flex flex-col items-center gap-4 w-full" onSubmit={patchDay}>
+        <form
+          className="flex flex-col items-center gap-4 w-full"
+          onSubmit={patchDay}
+        >
           <div className="flex flex-col w-full items-center gap-2">
             <h1 className="text-xl font-bold text-[#3A2F2F]">Assign To:</h1>
             <select

@@ -1,7 +1,3 @@
-export default function Snackbar(){
-    return (
-        <div>
-
-        </div>
-    )
+export default function Snackbar() {
+  return <div></div>;
 }
