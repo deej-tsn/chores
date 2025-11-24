@@ -12,13 +12,3 @@ services:
     ports:
       - "8000:8000"
     restart: always
-
-  fe:
-    build:
-      context: ./FE/chores
-      dockerfile: ./Dockerfile
-    image: deejtsn/private:chores_fe_v1
-    platform: linux/amd64  
-    ports:
-      - "80:80"
-    restart: always

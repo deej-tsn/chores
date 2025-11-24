@@ -14,10 +14,12 @@ from .utils.auth.jwt import TokenData, create_access_token, get_current_user
 from .utils.auth.password import get_password_hash, verify_password
 
 origins = [
-    "https://local.app.com:5173"
+    "https://local.app.com:5173",
+    "https://chores.dempseypalaciotascon.com",
+    "https://www.chores.dempseypalaciotascon.com"
 ]
 
-app = FastAPI()
+app = FastAPI(root_path="/api", redirect_slashes=True)
 
 app.add_middleware(
     CORSMiddleware,
