@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sqlmodel import select, update
 
-from .utils.database.db import SessionDep, Timetable, TimetableData, TimetablePublic, User, UserCreate, UserDB, add_this_weeks_dates, create_db_and_tables, get_last_monday, create_test_user, week_dependency
+from .utils.database.db import SessionDep, Timetable, TimetableData, TimetablePublic, User, UserCreate, UserDB, add_weeks_dates, create_db_and_tables, get_last_monday, create_test_user, week_dependency
 
 from .utils.auth.jwt import TokenData, create_access_token, get_current_user
 from .utils.auth.password import get_password_hash, verify_password
@@ -32,7 +32,7 @@ app.add_middleware(
 @app.on_event("startup")
 def on_startup():
     create_db_and_tables()
-    add_this_weeks_dates()
+    add_weeks_dates()
     create_test_user()
 
 @app.post("/token")
@@ -126,11 +126,15 @@ def logout(response: Response):
 
 @app.get("/timetable")
 def get_timetable(session : SessionDep, week : date = Depends(week_dependency)) -> TimetableData:
+    current_date = date.today()
     last_monday = get_last_monday(week)
-    this_week_data_statement = select(Timetable, UserDB).join(UserDB, isouter=True).where(Timetable.day >= last_monday).where(Timetable.day < last_monday + timedelta(days=7))
-    this_week_data = session.exec(this_week_data_statement).all()
+    week_data_statement = select(Timetable, UserDB).join(UserDB, isouter=True).where(Timetable.day >= last_monday).where(Timetable.day < last_monday + timedelta(days=7))
+    week_data = session.exec(week_data_statement).all()
+    if(len(week_data) == 0):
+        if(last_monday > current_date and ((last_monday - current_date) <= timedelta(weeks=2))):
+            add_weeks_dates(last_monday)
     timetable = []
-    for (row,user) in this_week_data:
+    for (row,user) in week_data:
         name = None
         if(user):
             name = user.first_name
