@@ -133,6 +133,8 @@ def get_timetable(session : SessionDep, week : date = Depends(week_dependency)) 
     if(len(week_data) == 0):
         if(last_monday > current_date and ((last_monday - current_date) <= timedelta(weeks=2))):
             add_weeks_dates(last_monday)
+            return get_timetable(session=session, week=last_monday)
+
     timetable = []
     for (row,user) in week_data:
         name = None
