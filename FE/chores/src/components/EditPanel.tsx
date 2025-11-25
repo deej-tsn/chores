@@ -2,6 +2,7 @@ import { useContext } from "react";
 import { editPanelContext } from "../context/EditContext";
 import {
   convertDataToTimeTableType,
+  formatDate,
   type TimetableData,
 } from "../utils/timetable";
 import { UserContext } from "../context/UserContext";
@@ -9,10 +10,11 @@ import { MdCancel } from "react-icons/md";
 import { fetchURL } from "@/utils/fetch";
 
 interface EditPanelProps {
+  week: Date 
   setTimetable: (data: TimetableData) => void;
 }
 
-export default function EditPanel({ setTimetable }: EditPanelProps) {
+export default function EditPanel({week, setTimetable }: EditPanelProps) {
   const { showEditPanel, setEditPanelState } = useContext(editPanelContext);
   const { user } = useContext(UserContext);
 
@@ -20,8 +22,9 @@ export default function EditPanel({ setTimetable }: EditPanelProps) {
     event.preventDefault();
     const formData = new FormData(event.target as HTMLFormElement);
 
-    let data: { dayID: number; assign_to_self?: boolean } = {
+    let data: { dayID: number; assign_to_self?: boolean, week : string } = {
       dayID: showEditPanel ?? -1,
+      week : formatDate(week)
     };
 
     if (formData.get("assign") !== "") {
@@ -29,7 +32,7 @@ export default function EditPanel({ setTimetable }: EditPanelProps) {
     }
 
     try {
-      const res = await fetch(fetchURL("/timetable"), {
+      const res = await fetch(fetchURL(`/timetable`), {
         method: "PATCH",
         credentials: "include",
         headers: { "Content-Type": "application/json" },

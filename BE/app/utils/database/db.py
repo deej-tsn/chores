@@ -87,10 +87,13 @@ class TimetableData(BaseModel):
 #               UTILS
 # ─────────────────────────────────────────────
 
-def get_last_monday() -> datetime.date:
-    today = datetime.date.today()
-    return today - datetime.timedelta(days=today.weekday())
+def get_last_monday(date: datetime.date | None = None):
+    if date is None:
+        date = datetime.date.today()
+    return date - datetime.timedelta(days=date.weekday())
 
+def week_dependency(week: datetime.date | None = None):
+    return get_last_monday(week)
 
 def add_this_weeks_dates():
     last_monday = get_last_monday()

@@ -4,6 +4,7 @@ import {
   convertDataToTimeTableType,
   daysOfWeek,
   DefaultTimeTable,
+  formatDate,
   getMonday,
   type TimetableData,
 } from "../utils/timetable";
@@ -34,9 +35,10 @@ function Home() {
     };
   }, []);
 
-  useEffect(() => {
-    async function getTimetable() {
-      fetch(fetchURL("/timetable"), {
+  async function getTimetable(date?: Date) {
+      const params = date ? `?week=${formatDate(date)}` : "";
+      const url = fetchURL(`/timetable${params}`);
+      fetch(url, {
         method: "GET",
         credentials: "include",
       })
@@ -46,8 +48,9 @@ function Home() {
           setTimetable(timetableData);
         })
         .catch((error) => console.log(error));
-    }
+  }
 
+  useEffect(() => {
     getTimetable();
   }, []);
 
@@ -78,27 +81,44 @@ function Home() {
         </div>
 
         <Card className="w-full max-w-5xl bg-white rounded-3xl shadow-xl p-6 animate-fade-up animate-duration-500 animate-ease-in-out relative">
-          <div className="flex flex-col md:flex-row justify-center mb-4 items-center">
-            <div className="flex flex-row gap-2">
+          <div className="flex flex-col md:flex-row justify-center mb-6 items-center gap-3 relative">
+
+            {/* NAV BUTTONS */}
+            <div className="flex flex-row items-center gap-3 bg-[#FFF8F2] px-4 py-2 rounded-full shadow-sm border border-[#E8D6C5]">
               <Button
-                className="bg-[#FFF8F2] text-black drop-shadow-mg cursor-pointer"
-                variant={"outline"}
+                variant="ghost"
+                className="rounded-full p-2 hover:bg-[#E8D6C5] transition"
+                onClick={() => {
+                  const prevWeek = new Date(timetableData.weekStart);
+                  prevWeek.setDate(prevWeek.getDate() - 7);
+                  getTimetable(prevWeek);
+                }}
               >
-                <ArrowLeft />
+                <ArrowLeft className="w-5 h-5" />
               </Button>
-              <h2 className="text-2xl font-bold text-[#3A2F2F]">
-                Week: {timetableData.weekStart.toLocaleString()}
+
+              <h2 className="text-xl font-bold text-[#3A2F2F]">
+                Week: {timetableData.weekStart.toLocaleDateString()}
               </h2>
+
               <Button
-                className="bg-[#FFF8F2] text-black drop-shadow-mg cursor-pointer"
-                variant={"outline"}
+                variant="ghost"
+                className="rounded-full p-2 hover:bg-[#E8D6C5] transition"
+                onClick={() => {
+                  const nextWeek = new Date(timetableData.weekStart);
+                  nextWeek.setDate(nextWeek.getDate() + 7);
+                  getTimetable(nextWeek);
+                }}
               >
-                <ArrowRight />
+                <ArrowRight className="w-5 h-5" />
               </Button>
             </div>
 
+            {/* STATUS */}
             <span
-              className={`text-lg font-semibold md:absolute right-6 ${daysToAssign > 0 ? "text-[#E59D50]" : "text-[#6A5F5D]"}`}
+              className={`text-lg font-semibold ${
+                daysToAssign > 0 ? "text-[#E59D50]" : "text-[#6A5F5D]"
+              } md:absolute md:right-6`}
             >
               {daysToAssign > 0
                 ? `Days to Assign: ${daysToAssign}`
@@ -150,7 +170,7 @@ function Home() {
           </div>
         </Card>
       </div>
-      <EditPanel setTimetable={setTimetable} />
+      <EditPanel week={timetableData.weekStart} setTimetable={setTimetable} />
     </>
   );
 }

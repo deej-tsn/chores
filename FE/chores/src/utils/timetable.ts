@@ -76,7 +76,7 @@ type DataTimeTable = {
 
 export function convertDataToTimeTableType(data: {
   weekStart: string;
-  timetableData: DataTimeTable[];
+  timetable: DataTimeTable[];
 }): TimetableData {
   const timetable: TimeTableDict = {};
 
@@ -87,7 +87,7 @@ export function convertDataToTimeTableType(data: {
     };
   });
 
-  data.timetableData.forEach((date) => {
+  data.timetable.forEach((date) => {
     const weekday = dayNames[new Date(date.day).getDay()];
     timetable[weekday][date.time] = {
       assignee: date.assigned ?? undefined,
@@ -104,4 +104,8 @@ export function getMonday() {
   const day = d.getDay(),
     diff = d.getDate() - day + (day == 0 ? -6 : 1);
   return new Date(d.setDate(diff));
+}
+
+export function formatDate(date : Date) : string{
+  return date.toISOString().split("T")[0]
 }
