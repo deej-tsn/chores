@@ -8,6 +8,8 @@ type DayTime = {
   Evening: Day;
 };
 
+const DAYS_IN_MS = 1000 * 60 * 60 * 24
+
 export type TimeTableDict = {
   [day: string]: DayTime;
 };
@@ -108,4 +110,9 @@ export function getMonday() {
 
 export function formatDate(date : Date) : string{
   return date.toISOString().split("T")[0]
+}
+
+export function diffInDates(a : Date, b : Date) : number {
+  const diff = a.getTime() - b.getTime()
+  return diff / DAYS_IN_MS
 }

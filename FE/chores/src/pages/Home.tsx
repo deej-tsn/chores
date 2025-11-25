@@ -4,6 +4,7 @@ import {
   convertDataToTimeTableType,
   daysOfWeek,
   DefaultTimeTable,
+  diffInDates,
   formatDate,
   getMonday,
   type TimetableData,
@@ -15,6 +16,7 @@ import { Card } from "@/components/ui/card";
 import { fetchURL } from "@/utils/fetch";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, ArrowRight } from "lucide-react";
+import { isEmpty } from "@/utils/utils";
 
 function Home() {
   const { user } = useContext(UserContext);
@@ -23,6 +25,7 @@ function Home() {
     weekStart: getMonday(),
     timetable: DefaultTimeTable,
   });
+  const current_date = new Date()
 
   function handleWindowSizeChange() {
     setWidth(window.innerWidth);
@@ -36,6 +39,10 @@ function Home() {
   }, []);
 
   async function getTimetable(date?: Date) {
+      if(date && diffInDates(date, current_date) > 14){
+        alert('Timetable does not exist for given future date')
+        return
+      }
       const params = date ? `?week=${formatDate(date)}` : "";
       const url = fetchURL(`/timetable${params}`);
       fetch(url, {
@@ -43,9 +50,14 @@ function Home() {
         credentials: "include",
       })
         .then((res) => res.json())
-        .then((data) => {
-          const timetableData = convertDataToTimeTableType(data);
-          setTimetable(timetableData);
+        .then((data : {weekStart : string, timetable : any[]}) => {
+          if(data.timetable.length == 0){
+            setTimetable({weekStart: new Date(data.weekStart), timetable : {}})
+          } else{
+            const newTimetableData = convertDataToTimeTableType(data);
+            setTimetable(newTimetableData);
+          }
+
         })
         .catch((error) => console.log(error));
   }
@@ -57,12 +69,15 @@ function Home() {
   const isMobile = width <= 768;
 
   if (!user) return null;
-
-  const daysToAssign = daysOfWeek.reduce((count, day) => {
+  let daysToAssign = undefined
+  if (!isEmpty(timetableData.timetable)){
+    daysToAssign = daysOfWeek.reduce((count, day) => {
     const morning = timetableData.timetable[day].Morning.assignee ? 0 : 1;
     const evening = timetableData.timetable[day].Evening.assignee ? 0 : 1;
     return count + morning + evening;
   }, 0);
+
+  }
 
   return (
     <>
@@ -81,93 +96,95 @@ function Home() {
         </div>
 
         <Card className="w-full max-w-5xl bg-white rounded-3xl shadow-xl p-6 animate-fade-up animate-duration-500 animate-ease-in-out relative">
-          <div className="flex flex-col md:flex-row justify-center mb-6 items-center gap-3 relative">
+            <div className="flex flex-col md:flex-row justify-center mb-6 items-center gap-3 relative">
 
-            {/* NAV BUTTONS */}
-            <div className="flex flex-row items-center gap-3 bg-[#FFF8F2] px-4 py-2 rounded-full shadow-sm border border-[#E8D6C5]">
-              <Button
-                variant="ghost"
-                className="rounded-full p-2 hover:bg-[#E8D6C5] transition"
-                onClick={() => {
-                  const prevWeek = new Date(timetableData.weekStart);
-                  prevWeek.setDate(prevWeek.getDate() - 7);
-                  getTimetable(prevWeek);
-                }}
-              >
-                <ArrowLeft className="w-5 h-5" />
-              </Button>
+              {/* NAV BUTTONS */}
+              <div className="flex flex-row items-center gap-3 bg-[#FFF8F2] px-4 py-2 rounded-full shadow-sm border border-[#E8D6C5]">
+                <Button
+                  variant="ghost"
+                  className="rounded-full p-2 hover:bg-[#E8D6C5] transition"
+                  onClick={() => {
+                    const prevWeek = new Date(timetableData.weekStart);
+                    prevWeek.setDate(prevWeek.getDate() - 7);
+                    getTimetable(prevWeek);
+                  }}
+                >
+                  <ArrowLeft className="w-5 h-5" />
+                </Button>
 
-              <h2 className="text-xl font-bold text-[#3A2F2F]">
-                Week: {timetableData.weekStart.toLocaleDateString()}
-              </h2>
+                <h2 className="text-xl font-bold text-[#3A2F2F]">
+                  Week: {timetableData.weekStart.toLocaleDateString()}
+                </h2>
 
-              <Button
-                variant="ghost"
-                className="rounded-full p-2 hover:bg-[#E8D6C5] transition"
-                onClick={() => {
-                  const nextWeek = new Date(timetableData.weekStart);
-                  nextWeek.setDate(nextWeek.getDate() + 7);
-                  getTimetable(nextWeek);
-                }}
-              >
-                <ArrowRight className="w-5 h-5" />
-              </Button>
+                <Button
+                  variant="ghost"
+                  className="rounded-full p-2 hover:bg-[#E8D6C5] transition"
+                  onClick={() => {
+                    const nextWeek = new Date(timetableData.weekStart);
+                    nextWeek.setDate(nextWeek.getDate() + 7);
+                    getTimetable(nextWeek);
+                  }}
+                >
+                  <ArrowRight className="w-5 h-5" />
+                </Button>
+              </div>
+
+              {/* STATUS */}
+              {daysToAssign && 
+                <span className={`text-lg font-semibold ${ daysToAssign > 0 ? "text-[#E59D50]" : "text-[#6A5F5D]"} md:absolute md:right-6`}>
+                  {daysToAssign > 0
+                    ? `Days to Assign: ${daysToAssign}`
+                    : "Fully Allocated"}
+                </span>
+              }
             </div>
-
-            {/* STATUS */}
-            <span
-              className={`text-lg font-semibold ${
-                daysToAssign > 0 ? "text-[#E59D50]" : "text-[#6A5F5D]"
-              } md:absolute md:right-6`}
-            >
-              {daysToAssign > 0
-                ? `Days to Assign: ${daysToAssign}`
-                : "Fully Allocated"}
-            </span>
-          </div>
-          <div className="w-full h-fit md:h-64 grid grid-cols-2 grid-rows-7 md:grid-cols-7 md:grid-rows-2 gap-4">
-            {!isMobile ? (
-              <>
-                {daysOfWeek.map((day) => (
-                  <DayCell
-                    key={`${day} - Morning`}
-                    day={day}
-                    time="Morning"
-                    assigned={timetableData.timetable[day].Morning.assignee}
-                    id={timetableData.timetable[day].Morning.id}
-                  />
-                ))}
-                {daysOfWeek.map((day) => (
-                  <DayCell
-                    key={`${day} - Evening`}
-                    day={day}
-                    time="Evening"
-                    assigned={timetableData.timetable[day].Evening.assignee}
-                    id={timetableData.timetable[day].Evening.id}
-                  />
-                ))}
-              </>
-            ) : (
-              daysOfWeek.map((day) => (
+            { !isEmpty(timetableData.timetable) ? 
+            <div className="w-full h-fit md:h-64 grid grid-cols-2 grid-rows-7 md:grid-cols-7 md:grid-rows-2 gap-4">
+              {!isMobile ? (
                 <>
-                  <DayCell
-                    key={`${day} - Morning`}
-                    day={day}
-                    time="Morning"
-                    assigned={timetableData.timetable[day].Morning.assignee}
-                    id={timetableData.timetable[day].Morning.id}
-                  />
-                  <DayCell
-                    key={`${day} - Evening`}
-                    day={day}
-                    time="Evening"
-                    assigned={timetableData.timetable[day].Evening.assignee}
-                    id={timetableData.timetable[day].Evening.id}
-                  />
+                  {daysOfWeek.map((day) => (
+                    <DayCell
+                      key={`${day} - Morning`}
+                      day={day}
+                      time="Morning"
+                      assigned={timetableData.timetable[day].Morning.assignee}
+                      id={timetableData.timetable[day].Morning.id}
+                    />
+                  ))}
+                  {daysOfWeek.map((day) => (
+                    <DayCell
+                      key={`${day} - Evening`}
+                      day={day}
+                      time="Evening"
+                      assigned={timetableData.timetable[day].Evening.assignee}
+                      id={timetableData.timetable[day].Evening.id}
+                    />
+                  ))}
                 </>
-              ))
-            )}
-          </div>
+              ) : (
+                daysOfWeek.map((day) => (
+                  <>
+                    <DayCell
+                      key={`${day} - Morning`}
+                      day={day}
+                      time="Morning"
+                      assigned={timetableData.timetable[day].Morning.assignee}
+                      id={timetableData.timetable[day].Morning.id}
+                    />
+                    <DayCell
+                      key={`${day} - Evening`}
+                      day={day}
+                      time="Evening"
+                      assigned={timetableData.timetable[day].Evening.assignee}
+                      id={timetableData.timetable[day].Evening.id}
+                    />
+                  </>
+                ))
+              )}
+            </div>
+            : 
+            <div className="w-full h-fit flex justify-center font-bold">No timetable data available</div>
+            }
         </Card>
       </div>
       <EditPanel week={timetableData.weekStart} setTimetable={setTimetable} />
