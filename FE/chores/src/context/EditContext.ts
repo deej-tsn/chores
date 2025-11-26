@@ -1,9 +1,15 @@
 import { createContext, createElement, useState } from "react";
 import type { ReactNode } from "react";
 
+type EditPanelDayInfo = {
+  id : number,
+  dayOfWeek : string,
+  shift : 'Morning' | 'Evening'
+}
+
 type EditPanelContextType = {
-  showEditPanel: number | undefined;
-  setEditPanelState: (state: number | undefined) => void;
+  showEditPanel: EditPanelDayInfo | undefined;
+  setEditPanelState: (state: EditPanelDayInfo | undefined) => void;
 };
 
 const editPanelContext = createContext<EditPanelContextType>({
@@ -12,7 +18,7 @@ const editPanelContext = createContext<EditPanelContextType>({
 });
 
 function EditPanelProvider({ children }: { children: ReactNode }) {
-  const [showEditPanel, setEditPanelState] = useState<number | undefined>(
+  const [showEditPanel, setEditPanelState] = useState<EditPanelDayInfo | undefined>(
     undefined,
   );
 

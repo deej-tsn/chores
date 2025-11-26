@@ -23,7 +23,7 @@ export default function EditPanel({week, setTimetable }: EditPanelProps) {
     const formData = new FormData(event.target as HTMLFormElement);
 
     let data: { dayID: number; assign_to_self?: boolean, week : string } = {
-      dayID: showEditPanel ?? -1,
+      dayID: showEditPanel!.id ?? -1,
       week : formatDate(week)
     };
 
@@ -57,13 +57,16 @@ export default function EditPanel({week, setTimetable }: EditPanelProps) {
 
       {/* Panel */}
       <div className="z-20 w-11/12 md:w-96 h-fit fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white rounded-3xl shadow-xl p-6 animate-fadeIn flex flex-col gap-4">
-        {/* Close button */}
-        <button
-          className="self-end text-2xl text-[#E59D50] font-bold hover:text-[#FFB974] transition-colors"
-          onClick={() => setEditPanelState(undefined)}
-        >
-          <MdCancel />
-        </button>
+        <div className="w-full h-fit flex relative items-center justify-center">
+          <h1 className="text-xl font-bold text-[#3A2F2F]">{`${showEditPanel.dayOfWeek} - ${showEditPanel.shift}`}</h1>
+          {/* Close button */}
+          <button
+            className="absolute right-0 text-2xl text-[#E59D50] font-bold hover:text-[#FFB974] transition-colors"
+            onClick={() => setEditPanelState(undefined)}
+          >
+            <MdCancel />
+          </button>
+        </div>
 
         {/* Form */}
         <form
@@ -71,7 +74,7 @@ export default function EditPanel({week, setTimetable }: EditPanelProps) {
           onSubmit={patchDay}
         >
           <div className="flex flex-col w-full items-center gap-2">
-            <h1 className="text-xl font-bold text-[#3A2F2F]">Assign To:</h1>
+            <h1 className="text-lg font-bold text-[#3A2F2F]">Assign To:</h1>
             <select
               id="assign"
               name="assign"

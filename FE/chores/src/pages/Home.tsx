@@ -9,7 +9,6 @@ import {
   getMonday,
   type TimetableData,
 } from "../utils/timetable";
-import DayCell from "../components/DayCell";
 import luka from "../assets/image.png";
 import EditPanel from "../components/EditPanel";
 import { Card } from "@/components/ui/card";
@@ -17,26 +16,16 @@ import { fetchURL } from "@/utils/fetch";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import { isEmpty } from "@/utils/utils";
+import MergedDayCell from "@/components/MergedDayCell";
 
 function Home() {
   const { user } = useContext(UserContext);
-  const [width, setWidth] = useState<number>(window.innerWidth);
   const [timetableData, setTimetable] = useState<TimetableData>({
     weekStart: getMonday(),
     timetable: DefaultTimeTable,
   });
   const current_date = new Date()
 
-  function handleWindowSizeChange() {
-    setWidth(window.innerWidth);
-  }
-
-  useEffect(() => {
-    window.addEventListener("resize", handleWindowSizeChange);
-    return () => {
-      window.removeEventListener("resize", handleWindowSizeChange);
-    };
-  }, []);
 
   async function getTimetable(date?: Date) {
       if(date && diffInDates(date, current_date) > 14){
@@ -66,7 +55,6 @@ function Home() {
     getTimetable();
   }, []);
 
-  const isMobile = width <= 768;
 
   if (!user) return null;
   let daysToAssign = undefined
@@ -139,48 +127,17 @@ function Home() {
               }
             </div>
             { !isEmpty(timetableData.timetable) ? 
-            <div className="w-full h-fit md:h-64 grid grid-cols-2 grid-rows-7 md:grid-cols-7 md:grid-rows-2 gap-4">
-              {!isMobile ? (
+            <div className="w-full h-fit md:h-64 grid grid-cols-1 grid-rows-7 md:grid-cols-7 md:grid-rows-1 gap-4">
                 <>
                   {daysOfWeek.map((day) => (
-                    <DayCell
+                    <MergedDayCell
                       key={`${day} - Morning`}
                       day={day}
-                      time="Morning"
-                      assigned={timetableData.timetable[day].Morning.assignee}
-                      id={timetableData.timetable[day].Morning.id}
-                    />
-                  ))}
-                  {daysOfWeek.map((day) => (
-                    <DayCell
-                      key={`${day} - Evening`}
-                      day={day}
-                      time="Evening"
-                      assigned={timetableData.timetable[day].Evening.assignee}
-                      id={timetableData.timetable[day].Evening.id}
+                      morning={timetableData.timetable[day].Morning}
+                      evening={timetableData.timetable[day].Evening}
                     />
                   ))}
                 </>
-              ) : (
-                daysOfWeek.map((day) => (
-                  <>
-                    <DayCell
-                      key={`${day} - Morning`}
-                      day={day}
-                      time="Morning"
-                      assigned={timetableData.timetable[day].Morning.assignee}
-                      id={timetableData.timetable[day].Morning.id}
-                    />
-                    <DayCell
-                      key={`${day} - Evening`}
-                      day={day}
-                      time="Evening"
-                      assigned={timetableData.timetable[day].Evening.assignee}
-                      id={timetableData.timetable[day].Evening.id}
-                    />
-                  </>
-                ))
-              )}
             </div>
             : 
             <div className="w-full h-fit flex justify-center font-bold">No timetable data available</div>
