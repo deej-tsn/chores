@@ -39,7 +39,7 @@ class User(SQLModel):
     first_name: str = Field(index=True, nullable=False)
     second_name: str = Field(index=True, nullable=False)
     colour: str = Field(default="RED")
-
+    role : str = Field(default="user")
 
 class UserCreate(BaseModel):
     email: EmailStr
@@ -48,20 +48,16 @@ class UserCreate(BaseModel):
     colour: Optional[str] = "RED"
     password: Annotated[str, Query(min_length=8, max_length=72)]
 
-
 class UserDB(User, table=True):
     hashed_password: str
-
 
 class UserForm(BaseModel):
     email: str
     given_password: str
 
-
 class TimeSlot(str, Enum):
     Morning = "Morning"
     Evening = "Evening"
-
 
 class Timetable(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
@@ -69,7 +65,6 @@ class Timetable(SQLModel, table=True):
     time: TimeSlot = Field(nullable=False)
     assigned: int | None = Field(default=None, foreign_key="userdb.id")
     __table_args__ = (UniqueConstraint("day", "time", name="only_single_date_time"),)
-
 
 class TimetablePublic(BaseModel):
     id: int
@@ -119,14 +114,14 @@ def add_weeks_dates(week : datetime.date | None = None):
         session.commit()
 
 
-def create_test_user():
-    test_password = "testing12345"
+def create_test_user(test_email : str, test_password : str):
     test_user = UserDB(
-        email="test@hotmail.com",
+        email=test_email,
         first_name="Test",
         second_name="User",
         colour="BLUE",
         hashed_password=get_password_hash(test_password),
+        role="admin"
     )
 
     with Session(engine) as session:

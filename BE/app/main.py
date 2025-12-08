@@ -10,8 +10,10 @@ from sqlmodel import select, update
 
 from .utils.database.db import SessionDep, Timetable, TimetableData, TimetablePublic, User, UserCreate, UserDB, add_weeks_dates, create_db_and_tables, get_last_monday, create_test_user, week_dependency
 
-from .utils.auth.jwt import TokenData, create_access_token, get_current_user
+from .utils.auth.jwt import TokenData, create_access_token, get_current_user, require_admin
 from .utils.auth.password import get_password_hash, verify_password
+
+from .config import Settings
 
 origins = [
     "https://local.app.com:5173",
@@ -20,6 +22,9 @@ origins = [
 ]
 
 app = FastAPI(root_path="/api", redirect_slashes=True)
+
+def get_settings():
+    return Settings()
 
 app.add_middleware(
     CORSMiddleware,
@@ -32,8 +37,14 @@ app.add_middleware(
 @app.on_event("startup")
 def on_startup():
     create_db_and_tables()
-    add_weeks_dates()
-    create_test_user()
+    settings = get_settings()
+    if settings.environment == "DEV":
+        add_weeks_dates()
+        if settings.test_user_email == "":
+            raise KeyError("No 'TEST_USER_EMAIL' found in env")
+        if settings.test_user_email == "":
+            raise KeyError("No 'TEST_USER_PASSWORD' found in env")
+        create_test_user(test_email=settings.test_user_email, test_password=settings.test_user_password)
 
 @app.post("/token")
 async def login_for_access_token(response: Response, session: SessionDep, user : OAuth2PasswordRequestForm = Depends()):
@@ -45,7 +56,8 @@ async def login_for_access_token(response: Response, session: SessionDep, user :
         "sub": found_user.email,
         "first_name": found_user.first_name,
         "second_name": found_user.second_name,
-        "colour": found_user.colour
+        "colour": found_user.colour,
+        "role" : found_user.role
     })
 
     response.set_cookie(
@@ -73,7 +85,8 @@ def create_user(response:Response, user: Annotated[UserCreate, Form()], session:
         first_name=user.first_name,
         second_name=user.surename,
         colour=user.colour,
-        hashed_password=hashed_password
+        hashed_password=hashed_password,
+        role="user"
     )
     session.add(db_user)
     session.commit()
@@ -83,7 +96,8 @@ def create_user(response:Response, user: Annotated[UserCreate, Form()], session:
         "sub": db_user.email,
         "first_name": db_user.first_name,
         "second_name":db_user.second_name,
-        "colour":db_user.colour
+        "colour":db_user.colour,
+        "role": db_user.role
     })
 
     response.set_cookie(
@@ -103,13 +117,14 @@ def read_users(
     session: SessionDep,
     offset: int = 0,
     limit: Annotated[int, Query(le=100)] = 100,
-    _ : TokenData = Depends(get_current_user),
+    user : UserDB = Depends(require_admin),
 ) -> list[User]:
+    
     users = session.exec(select(UserDB).offset(offset).limit(limit)).all()
     return users
 
 @app.get("/users/{user_id}")
-def read_user(user_id: int, session: SessionDep) -> User:
+def read_user(user_id: int, session: SessionDep, _ : UserDB = Depends(require_admin)) -> User:
     user = session.get(UserDB, user_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")

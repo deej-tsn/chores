@@ -118,11 +118,12 @@ function Home() {
               </div>
 
               {/* STATUS */}
-              {daysToAssign && 
+              {daysToAssign !== undefined && 
                 <span className={`text-lg font-semibold ${ daysToAssign > 0 ? "text-[#E59D50]" : "text-[#6A5F5D]"} md:absolute md:right-6`}>
                   {daysToAssign > 0
                     ? `Days to Assign: ${daysToAssign}`
-                    : "Fully Allocated"}
+                    : "Fully Allocated"
+                  }
                 </span>
               }
             </div>

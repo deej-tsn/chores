@@ -5,7 +5,7 @@ from jose import JWTError, jwt
 from pydantic import BaseModel
 from sqlmodel import Session, select
 
-from ..database.db import User, UserDB, get_session
+from ..database.db import SessionDep, User, UserDB, get_session
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/token")
 
@@ -22,6 +22,7 @@ class TokenData(BaseModel):
     first_name : str
     second_name : str
     colour : str
+    role: str
     iat : datetime
     exp : datetime
 
@@ -57,3 +58,21 @@ def get_current_user(request : Request, session : Session = Depends(get_session)
     if not found_user:
         raise credentials_exception
     return TokenData(**payload)
+
+def require_admin(session : SessionDep, current_user: TokenData = Depends(get_current_user)) -> UserDB:
+    ## search db from role
+    credentials_exception = HTTPException(
+        status_code=401,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    statement = select(UserDB).where(UserDB.email == current_user.sub)
+    found_user = session.exec(statement).first()
+    if not found_user:
+        raise credentials_exception
+    if found_user.role != "admin":
+        raise HTTPException(
+            status_code=403,
+            detail="Admins only"
+        )
+    return found_user

@@ -15,6 +15,7 @@ type TokenData = {
   first_name: string;
   second_name: string;
   colour: string;
+  role : string;
   iat: Date;
   exp: Date;
 };
