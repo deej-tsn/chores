@@ -39,7 +39,7 @@ class User(SQLModel):
     first_name: str = Field(index=True, nullable=False)
     second_name: str = Field(index=True, nullable=False)
     colour: str = Field(default="RED")
-    role : str = Field(default="user")
+    role : str = Field(default="read-only-user")
 
 class UserCreate(BaseModel):
     email: EmailStr
@@ -89,6 +89,22 @@ def get_last_monday(date: datetime.date | None = None):
 
 def week_dependency(week: datetime.date | None = None):
     return get_last_monday(week)
+
+def get_dog_walkers_for_today() -> dict:
+    date = datetime.date.today()
+    with Session(engine) as session:
+        today_dog_walkers = session.exec(
+            select(Timetable).where(Timetable.day == date)
+        ).all()
+
+        return {t.time : t.assigned for t in today_dog_walkers}
+
+def get_email_list() -> list:
+    with Session(engine) as session:
+        emails = session.exec(
+            select(UserDB.email).where(UserDB.role.in_(["admin", "user"]))
+        ).all()
+        return list(emails)
 
 def add_weeks_dates(week : datetime.date | None = None):
     last_monday = get_last_monday(week)

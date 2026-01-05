@@ -5,11 +5,14 @@ from jose import JWTError, jwt
 from pydantic import BaseModel
 from sqlmodel import Session, select
 
+from app.config import get_settings
+
 from ..database.db import SessionDep, User, UserDB, get_session
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/token")
+settings = get_settings()
 
-SECRET_KEY = "your-secret-key"
+SECRET_KEY = settings.secret_key
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 

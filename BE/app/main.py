@@ -8,12 +8,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sqlmodel import select, update
 
-from .utils.database.db import SessionDep, Timetable, TimetableData, TimetablePublic, User, UserCreate, UserDB, add_weeks_dates, create_db_and_tables, get_last_monday, create_test_user, week_dependency
+from .utils.notifications.resend import start_notifications_scheduler
+
+from .utils.database.db import SessionDep, Timetable, TimetableData, TimetablePublic, User, UserCreate, UserDB, add_weeks_dates, create_db_and_tables, get_email_list, get_last_monday, create_test_user, week_dependency
 
 from .utils.auth.jwt import TokenData, create_access_token, get_current_user, require_admin
 from .utils.auth.password import get_password_hash, verify_password
 
-from .config import Settings
+from .config import get_settings
 
 origins = [
     "https://local.app.com:5173",
@@ -22,9 +24,6 @@ origins = [
 ]
 
 app = FastAPI(root_path="/api", redirect_slashes=True)
-
-def get_settings():
-    return Settings()
 
 app.add_middleware(
     CORSMiddleware,
@@ -38,13 +37,14 @@ app.add_middleware(
 def on_startup():
     create_db_and_tables()
     settings = get_settings()
+    start_notifications_scheduler()
     if settings.environment == "DEV":
         add_weeks_dates()
         if settings.test_user_email == "":
             raise KeyError("No 'TEST_USER_EMAIL' found in env")
         if settings.test_user_email == "":
             raise KeyError("No 'TEST_USER_PASSWORD' found in env")
-        create_test_user(test_email=settings.test_user_email, test_password=settings.test_user_password)
+        create_test_user(test_email=settings.test_user_email, test_password=settings.test_user_password)    
 
 @app.post("/token")
 async def login_for_access_token(response: Response, session: SessionDep, user : OAuth2PasswordRequestForm = Depends()):
@@ -86,7 +86,7 @@ def create_user(response:Response, user: Annotated[UserCreate, Form()], session:
         second_name=user.surename,
         colour=user.colour,
         hashed_password=hashed_password,
-        role="user"
+        role="read-only-user"
     )
     session.add(db_user)
     session.commit()
@@ -175,6 +175,8 @@ def update_timetable(data : UpdateTimetableRequest, session : SessionDep, user: 
         user_db = session.exec(select(UserDB).where(UserDB.email == user.sub)).first()
         if user_db is None:
             raise HTTPException(status_code=404, detail="User Not Found")
+        if user_db.role not in ["admin", "user"]:
+            raise HTTPException(status_code=401, detail="Unauthorised")
         assignment = user_db.id
     update_statement = update(Timetable).where(Timetable.id == data.dayID).values(assigned=assignment)
     session.exec(update_statement)
