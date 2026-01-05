@@ -3,6 +3,7 @@ type User = {
   second_name: string;
   email: string;
   colour: string;
+  role: string;
 };
 
 type Token = {

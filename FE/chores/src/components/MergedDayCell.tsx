@@ -37,6 +37,7 @@ export default function MergedDayCell({
   }
 
   function handleClick(shiftTime : 'Morning' | 'Evening' , shift: Shift) {
+    if(!["admin", "user"].includes(user?.role ?? "")) return
     if (canEdit(shift)) setEditPanelState({
         id: shift.id,
         dayOfWeek : day,

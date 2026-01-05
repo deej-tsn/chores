@@ -40,6 +40,7 @@ function UserProvider({ children }: { children: ReactNode }) {
           first_name: data.first_name,
           second_name: data.second_name,
           colour: data.colour,
+          role: data.role,
         });
       } catch (error) {
         console.error("Failed to fetch user info:", error);

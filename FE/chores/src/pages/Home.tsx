@@ -145,7 +145,7 @@ function Home() {
             }
         </Card>
       </div>
-      <EditPanel week={timetableData.weekStart} setTimetable={setTimetable} />
+      {["admin", "user"].includes(user.role) && <EditPanel week={timetableData.weekStart} setTimetable={setTimetable} />}
     </>
   );
 }
