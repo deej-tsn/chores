@@ -16,3 +16,7 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings():
     return Settings()
+
+def get_settings_dep() -> Settings:
+    """FastAPI dependency for Settings."""
+    return get_settings()

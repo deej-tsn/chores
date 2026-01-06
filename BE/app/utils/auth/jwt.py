@@ -5,7 +5,7 @@ from jose import JWTError, jwt
 from pydantic import BaseModel
 from sqlmodel import Session, select
 
-from app.config import Settings
+from app.config import Settings, get_settings_dep
 
 from ..database.db import SessionDep, User, UserDB, get_session
 
@@ -35,7 +35,7 @@ def create_access_token(settings : Settings, data: dict):
     encoded_jwt = jwt.encode(to_encode, settings.secret_key, algorithm=ALGORITHM)
     return encoded_jwt
 
-def get_current_user(settings : Settings, request : Request, session : Session = Depends(get_session)) -> TokenData:
+def get_current_user(request : Request, settings: Settings = Depends(get_settings_dep),  session : Session = Depends(get_session)) -> TokenData:
     credentials_exception = HTTPException(
         status_code=401,
         detail="Could not validate credentials",

@@ -15,7 +15,7 @@ from .utils.database.db import SessionDep, Timetable, TimetableData, TimetablePu
 from .utils.auth.jwt import TokenData, create_access_token, get_current_user, require_admin
 from .utils.auth.password import get_password_hash, verify_password
 
-from .config import get_settings
+from .config import get_settings, get_settings_dep
 
 origins = [
     "https://local.app.com:5173",
@@ -47,12 +47,12 @@ def on_startup():
         create_test_user(test_email=settings.test_user_email, test_password=settings.test_user_password)    
 
 @app.post("/token")
-async def login_for_access_token(response: Response, session: SessionDep, user : OAuth2PasswordRequestForm = Depends()):
+async def login_for_access_token(response: Response, session: SessionDep, user : OAuth2PasswordRequestForm = Depends(), settings = Depends(get_settings_dep)):
     statement = select(UserDB).where(UserDB.email == user.username)
     found_user = session.exec(statement).first()
     if found_user is None or not verify_password(user.password, found_user.hashed_password):
         raise HTTPException(status_code=400, detail="Incorrect username or password")
-    access_token = create_access_token(get_settings(), data={
+    access_token = create_access_token(settings, data={
         "sub": found_user.email,
         "first_name": found_user.first_name,
         "second_name": found_user.second_name,
@@ -73,7 +73,7 @@ async def login_for_access_token(response: Response, session: SessionDep, user :
     return {'message' : 'token returned in cookie'}
 
 @app.post("/users/")
-def create_user(response:Response, user: Annotated[UserCreate, Form()], session: SessionDep) -> User:
+def create_user(response:Response, user: Annotated[UserCreate, Form()], session: SessionDep, settings= Depends(get_settings_dep)) -> User:
     existing_user = session.exec(select(UserDB).where(UserDB.email == user.email)).first()
     if existing_user:
         raise HTTPException(status_code=400, detail="Email already registered")
@@ -92,7 +92,7 @@ def create_user(response:Response, user: Annotated[UserCreate, Form()], session:
     session.commit()
     session.refresh(db_user)
 
-    access_token = create_access_token(data={
+    access_token = create_access_token(settings, data={
         "sub": db_user.email,
         "first_name": db_user.first_name,
         "second_name":db_user.second_name,
@@ -131,7 +131,7 @@ def read_user(user_id: int, session: SessionDep, _ : UserDB = Depends(require_ad
     return user
 
 @app.get("/user")
-def get_user_from_token(user : TokenData = Depends(lambda: get_current_user(get_settings()))) -> TokenData:
+def get_user_from_token(user : TokenData = Depends(get_current_user)) -> TokenData:
     return user
 
 @app.get("/logout")
@@ -169,7 +169,7 @@ class UpdateTimetableRequest(BaseModel):
     week : date
 
 @app.patch("/timetable")
-def update_timetable(data : UpdateTimetableRequest, session : SessionDep, user: TokenData = Depends(lambda : get_current_user(get_settings()))) -> TimetableData:
+def update_timetable(data : UpdateTimetableRequest, session : SessionDep, user: TokenData = Depends(get_current_user)) -> TimetableData:
     assignment = None
     if(data.assign_to_self):
         user_db = session.exec(select(UserDB).where(UserDB.email == user.sub)).first()
