@@ -43,6 +43,6 @@ def send_daily_email():
 
 def start_notifications_scheduler():
     scheduler = BackgroundScheduler()
-    scheduler.add_job(send_daily_email, "cron", hour=23, minute=24)
+    scheduler.add_job(send_daily_email, "cron", hour=9, minute=0)
     scheduler.start()
     
