@@ -32,6 +32,8 @@ export default function MergedDayCell({
   const morningBG = morning.assignee ? "#ffd7a1" : "transparent";
   const eveningBG = evening.assignee ? "#ffd7a1" : "transparent";
 
+  const isAuthorized = ["admin", "user"].includes(user?.role ?? "");
+
   function canEdit(shift: Shift) {
     return !shift.assignee || shift.assignee === user?.first_name;
   }
@@ -44,6 +46,14 @@ export default function MergedDayCell({
         shift : shiftTime
     });
   }
+
+  const getCellClasses = 
+  `
+      flex-1 flex flex-col justify-center items-center text-center
+      transition-all duration-200 rounded-md
+      ${isAuthorized ? "cursor-pointer hover:bg-black/10" : "cursor-default"}
+  `;
+
 
   return (
     <div
@@ -67,11 +77,7 @@ export default function MergedDayCell({
       >
         <div
           onClick={() => handleClick('Morning', morning)}
-          className="
-            flex-1 flex flex-col justify-center items-center text-center
-            cursor-pointer transition-all duration-200 rounded-md
-            hover:bg-black/10
-          "
+          className={getCellClasses}
           style={{
             backgroundColor: morningBG,
           }}
@@ -92,11 +98,7 @@ export default function MergedDayCell({
 
         <div
           onClick={() => handleClick('Evening', evening)}
-          className="
-            flex-1 flex flex-col justify-center items-center text-center
-            cursor-pointer transition-all duration-200 rounded-md
-            hover:bg-black/10
-          "
+          className={getCellClasses}
           style={{
             backgroundColor: eveningBG,
           }}
