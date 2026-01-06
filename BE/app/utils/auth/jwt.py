@@ -5,14 +5,12 @@ from jose import JWTError, jwt
 from pydantic import BaseModel
 from sqlmodel import Session, select
 
-from app.config import get_settings
+from app.config import Settings
 
 from ..database.db import SessionDep, User, UserDB, get_session
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/token")
-settings = get_settings()
 
-SECRET_KEY = settings.secret_key
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
@@ -29,15 +27,15 @@ class TokenData(BaseModel):
     iat : datetime
     exp : datetime
 
-def create_access_token(data: dict):
+def create_access_token(settings : Settings, data: dict):
     to_encode = data.copy()
     current_time = datetime.now()
     expire = current_time + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     to_encode.update({"exp": expire, "iat" : current_time })
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    encoded_jwt = jwt.encode(to_encode, settings.secret_key, algorithm=ALGORITHM)
     return encoded_jwt
 
-def get_current_user(request : Request, session : Session = Depends(get_session)) -> TokenData:
+def get_current_user(settings : Settings, request : Request, session : Session = Depends(get_session)) -> TokenData:
     credentials_exception = HTTPException(
         status_code=401,
         detail="Could not validate credentials",
@@ -47,7 +45,7 @@ def get_current_user(request : Request, session : Session = Depends(get_session)
     if token is None:
         raise credentials_exception
     try:
-        payload : dict[str, any]= jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        payload : dict[str, any]= jwt.decode(token, settings.secret_key, algorithms=[ALGORITHM])
         email: str = payload.get('sub')
         if email is None:
             raise credentials_exception

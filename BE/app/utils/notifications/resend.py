@@ -2,13 +2,11 @@ import datetime
 import logging
 import resend
 
-from app.config import get_settings
+from app.config import Settings
 from app.utils.database.db import get_dog_walkers_for_today, get_email_list
 from apscheduler.schedulers.background import BackgroundScheduler
 
-settings = get_settings()
 
-resend.api_key = settings.resend_api_key
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("Notifications")
 
@@ -41,7 +39,8 @@ def send_daily_email():
     email: resend.Emails.SendResponse = resend.Emails.send(email_template)
     logger.info("Email Sent")
 
-def start_notifications_scheduler():
+def start_notifications_scheduler(settings : Settings):
+    resend.api_key = settings.resend_api_key
     scheduler = BackgroundScheduler()
     scheduler.add_job(send_daily_email, "cron", hour=9, minute=0)
     scheduler.start()

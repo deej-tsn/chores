@@ -37,7 +37,7 @@ app.add_middleware(
 def on_startup():
     create_db_and_tables()
     settings = get_settings()
-    start_notifications_scheduler()
+    start_notifications_scheduler(settings)
     if settings.environment == "DEV":
         add_weeks_dates()
         if settings.test_user_email == "":
@@ -52,7 +52,7 @@ async def login_for_access_token(response: Response, session: SessionDep, user :
     found_user = session.exec(statement).first()
     if found_user is None or not verify_password(user.password, found_user.hashed_password):
         raise HTTPException(status_code=400, detail="Incorrect username or password")
-    access_token = create_access_token(data={
+    access_token = create_access_token(get_settings(), data={
         "sub": found_user.email,
         "first_name": found_user.first_name,
         "second_name": found_user.second_name,
@@ -131,7 +131,7 @@ def read_user(user_id: int, session: SessionDep, _ : UserDB = Depends(require_ad
     return user
 
 @app.get("/user")
-def get_user_from_token(user : TokenData = Depends(get_current_user)) -> TokenData:
+def get_user_from_token(user : TokenData = Depends(lambda: get_current_user(get_settings()))) -> TokenData:
     return user
 
 @app.get("/logout")
@@ -169,7 +169,7 @@ class UpdateTimetableRequest(BaseModel):
     week : date
 
 @app.patch("/timetable")
-def update_timetable(data : UpdateTimetableRequest, session : SessionDep, user: TokenData = Depends(get_current_user)) -> TimetableData:
+def update_timetable(data : UpdateTimetableRequest, session : SessionDep, user: TokenData = Depends(lambda : get_current_user(get_settings()))) -> TimetableData:
     assignment = None
     if(data.assign_to_self):
         user_db = session.exec(select(UserDB).where(UserDB.email == user.sub)).first()
