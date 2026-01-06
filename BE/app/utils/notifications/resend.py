@@ -17,7 +17,7 @@ base_email_template : resend.Emails.SendParams = {
 
 def get_html_template(walkers : dict) -> str:
     walkers = "".join(
-        f"<li><strong>{time.value}</strong>: {person}</li>" 
+        f"<li><strong>{time}</strong>: {person}</li>" 
         for time, person in walkers.items()
     )
 

@@ -47,14 +47,8 @@ export default function MergedDayCell({
     });
   }
 
-  const getCellClasses = 
-  `
-      flex-1 flex flex-col justify-center items-center text-center
-      transition-all duration-200 rounded-md
-      ${isAuthorized ? "cursor-pointer hover:bg-black/10" : "cursor-default"}
-  `;
-
-
+  const getCellClasses = `flex-1 flex flex-col justify-center items-center text-center transition-all duration-200 rounded-md ${isAuthorized && 'cursor-pointer hover:bg-black/10'}`;
+  
   return (
     <div
       className="

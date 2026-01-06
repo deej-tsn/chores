@@ -5,6 +5,7 @@ from typing import Annotated, Optional
 
 from fastapi import Depends, Query
 from pydantic import BaseModel, EmailStr
+from sqlalchemy import func
 from sqlmodel import (
     Date,
     Field,
@@ -91,13 +92,23 @@ def week_dependency(week: datetime.date | None = None):
     return get_last_monday(week)
 
 def get_dog_walkers_for_today() -> dict:
-    date = datetime.date.today()
+    today = datetime.date.today()
     with Session(engine) as session:
-        today_dog_walkers = session.exec(
-            select(Timetable).where(Timetable.day == date)
-        ).all()
+        stmt = (
+            select(
+                Timetable.time,
+                func.coalesce(
+                     (UserDB.first_name + " " + UserDB.second_name),
+                    "Unassigned"
+                ).label("name")
+            )
+            .join(UserDB, UserDB.id == Timetable.assigned, isouter=True)
+            .where(Timetable.day == today)
+        )
 
-        return {t.time : t.assigned for t in today_dog_walkers}
+        rows = session.exec(stmt).all()
+
+        return {time.value : name for time, name in rows}
 
 def get_email_list() -> list:
     with Session(engine) as session:
