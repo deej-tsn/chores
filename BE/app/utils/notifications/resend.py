@@ -10,11 +10,6 @@ from apscheduler.schedulers.background import BackgroundScheduler
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("Notifications")
 
-base_email_template : resend.Emails.SendParams = {
-    "from" : "Notifications <notifications@dempseypalaciotascon.com>",
-    "subject": f"Luka Walkers - {datetime.date.today()}",
-}
-
 def get_html_template(walkers : dict) -> str:
     walkers = "".join(
         f"<li><strong>{time}</strong>: {person}</li>" 
@@ -33,9 +28,12 @@ def get_html_template(walkers : dict) -> str:
 def send_daily_email():
     walkers = get_dog_walkers_for_today()
     email_list = get_email_list()
-    email_template = base_email_template.copy()
-    email_template["to"] = email_list
-    email_template['html'] = get_html_template(walkers)
+    email_template : resend.Emails.SendParams = {
+        "from" : "Notifications <notifications@dempseypalaciotascon.com>",
+        "to" : email_list,
+        "subject" : f"Luka Walkers - {datetime.date.today()}",
+        "html" : get_html_template(walkers)
+    }
     email: resend.Emails.SendResponse = resend.Emails.send(email_template)
     logger.info("Email Sent")
 
