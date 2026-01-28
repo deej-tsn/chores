@@ -1,9 +1,9 @@
-type Day = {
+export type Day = {
   assignee: string | undefined;
   id: number;
 };
 
-type DayTime = {
+export type DayTime = {
   Morning: Day;
   Evening: Day;
 };

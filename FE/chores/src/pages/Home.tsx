@@ -14,12 +14,15 @@ import EditPanel from "../components/EditPanel";
 import { Card } from "@/components/ui/card";
 import { fetchURL } from "@/utils/fetch";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, ArrowRight } from "lucide-react";
+import { ArrowLeft, ArrowRight, Info } from "lucide-react";
+
 import { isEmpty } from "@/utils/utils";
 import MergedDayCell from "@/components/MergedDayCell";
+import SummaryBox from "@/components/Summary";
 
 function Home() {
   const { user } = useContext(UserContext);
+  const [showSummaryBox, setSummaryBoxState] = useState<boolean>(false)
   const [timetableData, setTimetable] = useState<TimetableData>({
     weekStart: getMonday(),
     timetable: DefaultTimeTable,
@@ -126,6 +129,16 @@ function Home() {
                   }
                 </span>
               }
+
+              {/* SUMMARY */}
+              <div className="relative cursor-pointer p-2 rounded-full hover:bg-[#39393912]"
+                onClick={() => setSummaryBoxState(!showSummaryBox)}
+              >
+                <Info className="w-5 h-5" />
+                {showSummaryBox && (
+                  <SummaryBox timetable={timetableData.timetable} />
+                )}
+              </div>
             </div>
             { !isEmpty(timetableData.timetable) ? 
             <div className="w-full h-fit md:h-64 grid grid-cols-1 grid-rows-7 md:grid-cols-7 md:grid-rows-1 gap-4">
