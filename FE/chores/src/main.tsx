@@ -11,6 +11,7 @@ import ProtectedRoute from "./components/ProtectedRoute.tsx";
 import { EditPanelProvider } from "./context/EditContext.ts";
 import SignUp from "./pages/SignUp.tsx";
 import StatsPage from "./pages/Stats.tsx";
+import ProtectedAdminRoute from "./components/ProtectedAdminRoute.tsx";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
@@ -21,8 +22,12 @@ createRoot(document.getElementById("root")!).render(
             <Route index element={<Navigate to="/login" />} />
             <Route element={<ProtectedRoute />}>
               <Route path="/home" element={<Home />} />
-              <Route path="/stats" element={<StatsPage/>}/>
+
               <Route path="/settings" element={<Settings />} />
+            </Route>
+
+            <Route element={<ProtectedAdminRoute/>}>
+              <Route path="/stats" element={<StatsPage/>}/>
             </Route>
 
             <Route path="/login" element={<Login />} />
