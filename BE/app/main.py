@@ -8,6 +8,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sqlmodel import select, update
 
+from .utils.stats.stats import get_count_per_person_since_start
+
 from .utils.notifications.resend import start_notifications_scheduler
 
 from .utils.database.db import SessionDep, Timetable, TimetableData, TimetablePublic, User, UserCreate, UserDB, add_weeks_dates, create_db_and_tables, get_email_list, get_last_monday, create_test_user, week_dependency
@@ -182,3 +184,7 @@ def update_timetable(data : UpdateTimetableRequest, session : SessionDep, user: 
     session.exec(update_statement)
     session.commit()
     return get_timetable(session, week=data.week)
+
+@app.get("/count")
+def get_total_stats_since_start( session : SessionDep, _ : UserDB = Depends(require_admin)):
+    return get_count_per_person_since_start(session)

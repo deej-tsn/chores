@@ -18,6 +18,7 @@ export default function Navbar({ user }: NavbarProps) {
     <nav className="w-11/12 h-16 p-2 max-w-full rounded-3xl shadow-lg fixed top-5 bg-[#e59d50]/70 flex z-20 backdrop-blur-lg">
       <div className="h-full flex items-center grow gap-4">
         <NavLink path="/home" label="Home" />
+        <NavLink path="/stats" label="Stats" />
         <NavLink path="/settings" label="Settings" />
       </div>
       <div
