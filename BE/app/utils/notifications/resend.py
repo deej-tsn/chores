@@ -11,9 +11,10 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("Notifications")
 
 def get_html_template(walkers : dict) -> str:
+    order_dict = {"Morning" : 0, "Evening" : 1}
     walkers = "".join(
         f"<li><strong>{time}</strong>: {person}</li>" 
-        for time, person in walkers.items()
+        for time, person in sorted(walkers.items(), key=lambda pair : order_dict.get(pair[0]))
     )
 
     email_template_html = f"""
@@ -40,6 +41,6 @@ def send_daily_email():
 def start_notifications_scheduler(settings : Settings):
     resend.api_key = settings.resend_api_key
     scheduler = BackgroundScheduler()
-    scheduler.add_job(send_daily_email, "cron", hour=9, minute=0)
+    scheduler.add_job(send_daily_email, "cron", hour=22, minute=21)
     scheduler.start()
     
