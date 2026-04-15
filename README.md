@@ -1,5 +1,7 @@
 # Chores App
 
+<img width="5114" height="2704" alt="image" src="https://github.com/user-attachments/assets/8736f8d5-c108-4b40-9157-4d1296b6fd8c" />
+
 ## What it does
 This repository contains a small chores scheduling app with:
 - a backend API for user auth, timetable management, and email notifications
