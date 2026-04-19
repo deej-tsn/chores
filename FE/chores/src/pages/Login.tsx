@@ -43,9 +43,26 @@ export default function Login() {
     }
   }
 
+  async function submitGuestLogin() {
+    const res = await fetch(fetchURL("/token"), {
+      method: "POST",
+      body: new URLSearchParams({
+        username: "guest@example.com",
+        password: "guestpassword"
+      }),
+      credentials: "include",
+    });
+    if (res.ok) {
+      setAccessToken(!token);
+      return;
+    }
+  }
+
+
   if (user) {
     return <Navigate to="/home" replace />;
   }
+
 
   return (
     <div className="w-screen h-screen bg-[#FFF8F2] flex items-center justify-center p-4 ">
@@ -111,7 +128,8 @@ export default function Login() {
             </Button>
           </form>
 
-          <Button type="submit" className="w-full py-3 text-md font-semibold rounded-xl bg-[#FFB974] hover:bg-[#E59D50] text-[#3A2F2F] shadow-md">
+          <Button type="submit" className="w-full py-3 text-md font-semibold rounded-xl bg-[#FFB974] hover:bg-[#E59D50] text-[#3A2F2F] shadow-md"
+            onClick={submitGuestLogin}>
               Guest Mode
           </Button>
 
