@@ -111,6 +111,10 @@ export default function Login() {
             </Button>
           </form>
 
+          <Button type="submit" className="w-full py-3 text-md font-semibold rounded-xl bg-[#FFB974] hover:bg-[#E59D50] text-[#3A2F2F] shadow-md">
+              Guest Mode
+          </Button>
+
           <p className="text-center text-sm text-[#6A5F5D]">
             Don’t have an account?{" "}
             <Link className="text-[#E59D50] font-medium" to={"/sign-up"}>
