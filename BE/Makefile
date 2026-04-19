@@ -11,3 +11,8 @@ win:
 	python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000 \
 	--ssl-keyfile ./local_cert/local.app.com-key.pem \
 	--ssl-certfile ./local_cert/local.app.com.pem
+
+# Run tests
+test:
+	. .venv/bin/activate && \
+	pytest
