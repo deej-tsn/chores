@@ -37,18 +37,28 @@ app.add_middleware(
 
 @app.on_event("startup")
 def on_startup():
-    create_db_and_tables()
     settings = get_settings()
+
+    # validation
+    if settings.environment == "DEV":
+        if not settings.test_user_email:
+            raise KeyError("No 'TEST_USER_EMAIL' found in env")
+        if not settings.test_user_password:
+            raise KeyError("No 'TEST_USER_PASSWORD' found in env")
+
+    # initialisation of database and notifications
+    create_db_and_tables()
     start_notifications_scheduler(settings)
-    if settings.disable_guest_mode == False:
+
+    if not settings.disable_guest_mode:
         create_guest_user()
+
     if settings.environment == "DEV":
         add_weeks_dates()
-        if settings.test_user_email == "":
-            raise KeyError("No 'TEST_USER_EMAIL' found in env")
-        if settings.test_user_password == "":
-            raise KeyError("No 'TEST_USER_PASSWORD' found in env")
-        create_test_user(test_email=settings.test_user_email, test_password=settings.test_user_password)
+        create_test_user(
+            test_email=settings.test_user_email,
+            test_password=settings.test_user_password
+        )
 
 @app.post("/token")
 async def login_for_access_token(response: Response, session: SessionDep, user : OAuth2PasswordRequestForm = Depends(), settings = Depends(get_settings_dep)):
