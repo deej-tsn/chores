@@ -37,6 +37,7 @@ The frontend is a React + Vite app for the chores service. It provides a login/s
 
 ## Environment Variables
 - `VITE_API_BASE` — backend base URL, e.g. `http://localhost:8000/api`
+- `VITE_DISABLE_GUEST` — disable guest mode on FE. If missing will default to false.
 
 ## Setup
 1. `cd FE/chores`

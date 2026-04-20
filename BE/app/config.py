@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     environment: str = "PROD"
     test_user_email : str = ""
     test_user_password : str = ""
+    disable_guest_mode: bool = Field(False, env="DISABLE_GUEST_MODE")
     secret_key : str = Field(..., env="SECRET_KEY")
     resend_api_key : str = Field(..., env="RESEND_API_KEY")
 

@@ -12,7 +12,7 @@ from .utils.stats.stats import get_count_per_person_since_start
 
 from .utils.notifications.resend import start_notifications_scheduler
 
-from .utils.database.db import SessionDep, Timetable, TimetableData, TimetablePublic, User, UserCreate, UserDB, add_weeks_dates, create_db_and_tables, get_email_list, get_last_monday, create_test_user, week_dependency
+from .utils.database.db import SessionDep, Timetable, TimetableData, TimetablePublic, User, UserCreate, UserDB, add_weeks_dates, create_db_and_tables, create_guest_user, get_email_list, get_last_monday, create_test_user, week_dependency
 
 from .utils.auth.jwt import TokenData, create_access_token, get_current_user, require_admin
 from .utils.auth.password import get_password_hash, verify_password
@@ -37,16 +37,28 @@ app.add_middleware(
 
 @app.on_event("startup")
 def on_startup():
-    create_db_and_tables()
     settings = get_settings()
+
+    # validation
+    if settings.environment == "DEV":
+        if not settings.test_user_email:
+            raise KeyError("No 'TEST_USER_EMAIL' found in env")
+        if not settings.test_user_password:
+            raise KeyError("No 'TEST_USER_PASSWORD' found in env")
+
+    # initialisation of database and notifications
+    create_db_and_tables()
     start_notifications_scheduler(settings)
+
+    if not settings.disable_guest_mode:
+        create_guest_user()
+
     if settings.environment == "DEV":
         add_weeks_dates()
-        if settings.test_user_email == "":
-            raise KeyError("No 'TEST_USER_EMAIL' found in env")
-        if settings.test_user_email == "":
-            raise KeyError("No 'TEST_USER_PASSWORD' found in env")
-        create_test_user(test_email=settings.test_user_email, test_password=settings.test_user_password)    
+        create_test_user(
+            test_email=settings.test_user_email,
+            test_password=settings.test_user_password
+        )
 
 @app.post("/token")
 async def login_for_access_token(response: Response, session: SessionDep, user : OAuth2PasswordRequestForm = Depends(), settings = Depends(get_settings_dep)):
@@ -188,3 +200,4 @@ def update_timetable(data : UpdateTimetableRequest, session : SessionDep, user: 
 @app.get("/count")
 def get_total_stats_since_start( session : SessionDep, _ : UserDB = Depends(require_admin)):
     return get_count_per_person_since_start(session)
+

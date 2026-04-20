@@ -13,6 +13,8 @@ import {
 } from "@/components/ui/card";
 import { fetchURL } from "@/utils/fetch";
 
+const DisableGuest = import.meta.env.VITE_DISABLE_GUEST === "true";
+
 export default function Login() {
   const { token, setToken: setAccessToken, user } = useContext(UserContext);
   const [showPassword, setShowPassword] = useState(false);
@@ -43,9 +45,26 @@ export default function Login() {
     }
   }
 
+  async function submitGuestLogin() {
+    const res = await fetch(fetchURL("/token"), {
+      method: "POST",
+      body: new URLSearchParams({
+        username: "guest@example.com",
+        password: "guestpassword"
+      }),
+      credentials: "include",
+    });
+    if (res.ok) {
+      setAccessToken(!token);
+      return;
+    }
+  }
+
+
   if (user) {
     return <Navigate to="/home" replace />;
   }
+
 
   return (
     <div className="w-screen h-screen bg-[#FFF8F2] flex items-center justify-center p-4 ">
@@ -110,6 +129,13 @@ export default function Login() {
               Login
             </Button>
           </form>
+          
+          {!DisableGuest && (
+            <Button type="submit" className="w-full py-3 text-md font-semibold rounded-xl bg-[#FFB974] hover:bg-[#E59D50] text-[#3A2F2F] shadow-md"
+              onClick={submitGuestLogin}>
+              Guest Mode
+            </Button>
+          )}
 
           <p className="text-center text-sm text-[#6A5F5D]">
             Don’t have an account?{" "}

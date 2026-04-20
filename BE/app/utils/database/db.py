@@ -159,6 +159,23 @@ def create_test_user(test_email : str, test_password : str):
             session.add(test_user)
             session.commit()
 
+def create_guest_user():
+    guest_user = UserDB(
+        email="guest@example.com",
+        first_name="Guest",
+        second_name="User",
+        colour="GREEN",
+        hashed_password=get_password_hash("guestpassword"),
+        role="guest"
+    )
+
+    with Session(engine) as session:
+        exists = session.exec(
+            select(UserDB).where(UserDB.email == guest_user.email)
+        ).first()
+        if not exists:
+            session.add(guest_user)
+            session.commit()
 
 # ─────────────────────────────────────────────
 #               DB INIT / SESSION
