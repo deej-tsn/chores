@@ -6,7 +6,7 @@ from datetime import date, timedelta
 
 from app.main import app
 from app.utils.database.db import get_session, Timetable, TimeSlot
-from app.config import get_settings
+from app.config import get_settings, get_settings_dep, Settings
 
 
 @pytest.fixture(name="session")
@@ -39,7 +39,14 @@ def client_fixture(session: Session):
     def get_session_override():
         yield session
 
+    def override_settings():
+        return Settings(
+            secret_key="test-secret",
+            resend_api_key="test-key"
+        )
+
     app.dependency_overrides[get_session] = get_session_override
+    app.dependency_overrides[get_settings_dep] = override_settings
     client = TestClient(app, base_url="https://testserver")
     yield client
     app.dependency_overrides.clear()
