@@ -20,6 +20,9 @@ import { isEmpty } from "@/utils/utils";
 import MergedDayCell from "@/components/MergedDayCell";
 import SummaryBox from "@/components/Summary";
 
+// 1 week in milliseconds - using milliseconds instead of setDate() to avoid DST issues
+const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+
 function Home() {
   const { user } = useContext(UserContext);
   const [showSummaryBox, setSummaryBoxState] = useState<boolean>(false)
@@ -95,8 +98,7 @@ function Home() {
                   variant="ghost"
                   className="rounded-full p-2 hover:bg-[#E8D6C5] transition"
                   onClick={() => {
-                    const prevWeek = new Date(timetableData.weekStart);
-                    prevWeek.setDate(prevWeek.getDate() - 7);
+                    const prevWeek = new Date(timetableData.weekStart.getTime() - ONE_WEEK_MS);
                     getTimetable(prevWeek);
                   }}
                 >
@@ -111,8 +113,7 @@ function Home() {
                   variant="ghost"
                   className="rounded-full p-2 hover:bg-[#E8D6C5] transition"
                   onClick={() => {
-                    const nextWeek = new Date(timetableData.weekStart);
-                    nextWeek.setDate(nextWeek.getDate() + 7);
+                    const nextWeek = new Date(timetableData.weekStart.getTime() + ONE_WEEK_MS);
                     getTimetable(nextWeek);
                   }}
                 >
