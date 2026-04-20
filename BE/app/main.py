@@ -46,7 +46,7 @@ def on_startup():
         add_weeks_dates()
         if settings.test_user_email == "":
             raise KeyError("No 'TEST_USER_EMAIL' found in env")
-        if settings.test_user_email == "":
+        if settings.test_user_password == "":
             raise KeyError("No 'TEST_USER_PASSWORD' found in env")
         create_test_user(test_email=settings.test_user_email, test_password=settings.test_user_password)
 
