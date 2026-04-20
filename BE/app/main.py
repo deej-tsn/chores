@@ -40,6 +40,8 @@ def on_startup():
     create_db_and_tables()
     settings = get_settings()
     start_notifications_scheduler(settings)
+    if settings.disable_guest_mode == False:
+        create_guest_user()
     if settings.environment == "DEV":
         add_weeks_dates()
         if settings.test_user_email == "":
@@ -47,7 +49,6 @@ def on_startup():
         if settings.test_user_email == "":
             raise KeyError("No 'TEST_USER_PASSWORD' found in env")
         create_test_user(test_email=settings.test_user_email, test_password=settings.test_user_password)
-        create_guest_user()
 
 @app.post("/token")
 async def login_for_access_token(response: Response, session: SessionDep, user : OAuth2PasswordRequestForm = Depends(), settings = Depends(get_settings_dep)):

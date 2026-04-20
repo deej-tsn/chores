@@ -41,6 +41,7 @@ Optional:
 - `TEST_USER_EMAIL` — used in `DEV` mode
 - `TEST_USER_PASSWORD` — used in `DEV` mode
 - `ENVIRONMENT` — defaults to `PROD`
+- `DISABLE_GUEST_MODE` - optional (defaults to `False` if not present)
 
 ## Setup
 1. Install `uv` if not already installed.
