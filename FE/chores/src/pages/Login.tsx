@@ -13,6 +13,8 @@ import {
 } from "@/components/ui/card";
 import { fetchURL } from "@/utils/fetch";
 
+const DisableGuest = import.meta.env.VITE_DISABLE_GUEST === "true";
+
 export default function Login() {
   const { token, setToken: setAccessToken, user } = useContext(UserContext);
   const [showPassword, setShowPassword] = useState(false);
@@ -127,11 +129,13 @@ export default function Login() {
               Login
             </Button>
           </form>
-
-          <Button type="submit" className="w-full py-3 text-md font-semibold rounded-xl bg-[#FFB974] hover:bg-[#E59D50] text-[#3A2F2F] shadow-md"
-            onClick={submitGuestLogin}>
+          
+          {!DisableGuest && (
+            <Button type="submit" className="w-full py-3 text-md font-semibold rounded-xl bg-[#FFB974] hover:bg-[#E59D50] text-[#3A2F2F] shadow-md"
+              onClick={submitGuestLogin}>
               Guest Mode
-          </Button>
+            </Button>
+          )}
 
           <p className="text-center text-sm text-[#6A5F5D]">
             Don’t have an account?{" "}
