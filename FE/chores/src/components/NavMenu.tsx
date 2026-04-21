@@ -15,7 +15,6 @@ export default function NavMenu() {
             });
 
             if (response.ok) {
-                console.log("Logged out successfully");
                 setUser(undefined);
                 navigate("/login");
             } else {
