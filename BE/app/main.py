@@ -158,11 +158,6 @@ def read_user(user_id: int, session: SessionDep, _ : UserDB = Depends(require_ad
 def get_user_from_token(user : TokenData = Depends(get_current_user)) -> TokenData:
     return user
 
-@app.get("/logout")
-def logout(response: Response):
-    response.delete_cookie(key="access_token", path="/")
-    return {'message' : 'logged out'}
-
 @app.get("/timetable")
 def get_timetable(session : SessionDep, week : date = Depends(week_dependency)) -> TimetableData:
     current_date = date.today()

@@ -137,3 +137,69 @@ def test_unauthenticated_cannot_access_protected_endpoints(client: TestClient):
         else:
             response = client.get(endpoint)
         assert response.status_code == 401  # Unauthorized
+
+
+def test_logout_clears_cookie(client: TestClient, session: Session):
+    """Test that logout endpoint clears the access_token cookie."""
+    # Create and login a user
+    user = create_test_user(session, "test@example.com", "password123", "user")
+    login_response = login_user(client, user.email, "password123")
+    assert login_response.status_code == 200
+    
+    # Verify cookie is set after login
+    assert "access_token" in client.cookies
+    original_cookie = client.cookies.get("access_token")
+    assert original_cookie is not None
+    
+    # Call logout endpoint
+    logout_response = client.post("/logout")
+    assert logout_response.status_code == 200
+    assert logout_response.json() == {'message': 'logged out'}
+    
+    # Verify cookie is cleared (should be deleted or empty)
+    # After logout, the cookie should be deleted from the client
+    assert "access_token" not in client.cookies or client.cookies.get("access_token") == ""
+
+
+def test_protected_route_blocked_after_logout(client: TestClient, session: Session):
+    """Test that protected routes are blocked after logout."""
+    # Create and login a user
+    user = create_test_user(session, "test@example.com", "password123", "admin")
+    login_response = login_user(client, user.email, "password123")
+    assert login_response.status_code == 200
+    
+    # Verify protected endpoint works when logged in
+    users_response = client.get("/users/")
+    assert users_response.status_code == 200
+    
+    # Call logout endpoint
+    logout_response = client.post("/logout")
+    assert logout_response.status_code == 200
+    
+    # Verify protected endpoint is blocked after logout
+    protected_response = client.get("/users/")
+    assert protected_response.status_code == 401  # Unauthorized
+
+
+def test_logout_post_only_enforcement(client: TestClient, session: Session):
+    """Test that logout endpoint only accepts POST requests."""
+    # Create and login a user
+    user = create_test_user(session, "test@example.com", "password123", "user")
+    login_response = login_user(client, user.email, "password123")
+    assert login_response.status_code == 200
+    
+    # Test GET request to /logout (should fail or return 405)
+    get_response = client.get("/logout")
+    assert get_response.status_code == 405  # Method Not Allowed
+    
+    # Test PUT request to /logout (should fail or return 405)
+    put_response = client.put("/logout")
+    assert put_response.status_code == 405  # Method Not Allowed
+    
+    # Test DELETE request to /logout (should fail or return 405)
+    delete_response = client.delete("/logout")
+    assert delete_response.status_code == 405  # Method Not Allowed
+    
+    # Test that POST still works
+    post_response = client.post("/logout")
+    assert post_response.status_code == 200
