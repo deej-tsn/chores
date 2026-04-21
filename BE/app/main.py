@@ -86,7 +86,7 @@ async def login_for_access_token(response: Response, session: SessionDep, user :
 
     return {'message' : 'token returned in cookie'}
 
-@app.get("/logout")
+@app.post("/logout")
 def logout(response: Response):
     response.delete_cookie(
         key="access_token", 

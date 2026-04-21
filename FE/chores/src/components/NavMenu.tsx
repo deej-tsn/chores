@@ -10,7 +10,7 @@ export default function NavMenu() {
     async function logout(navigate: any) {
         try {
             const response = await fetch(fetchURL("/logout"), {
-                method: "GET",
+                method: "POST",
                 credentials: "include",
             });
 
