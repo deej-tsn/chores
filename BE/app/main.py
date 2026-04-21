@@ -86,6 +86,16 @@ async def login_for_access_token(response: Response, session: SessionDep, user :
 
     return {'message' : 'token returned in cookie'}
 
+@app.get("/logout")
+def logout(response: Response):
+    response.delete_cookie(
+        key="access_token", 
+        path="/",
+        secure=True,
+        samesite="none"
+    )
+    return {'message' : 'logged out'}
+
 @app.post("/users/")
 def create_user(response:Response, user: Annotated[UserCreate, Form()], session: SessionDep, settings= Depends(get_settings_dep)) -> User:
     existing_user = session.exec(select(UserDB).where(UserDB.email == user.email)).first()

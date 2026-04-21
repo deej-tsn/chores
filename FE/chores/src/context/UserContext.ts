@@ -5,7 +5,7 @@ import { fetchURL } from "@/utils/fetch";
 
 type UserContextType = {
   user: User | undefined;
-  setUser: (user: User) => void;
+  setUser: (user: User | undefined) => void;
   token: boolean | undefined;
   setToken: (token: boolean) => void;
 };
