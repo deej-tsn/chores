@@ -162,25 +162,46 @@ def get_user_from_token(user : TokenData = Depends(get_current_user)) -> TokenDa
 def get_timetable(session : SessionDep, week : date = Depends(week_dependency)) -> TimetableData:
     current_date = date.today()
     last_monday = get_last_monday(week)
-    week_data_statement = select(Timetable, UserDB).join(UserDB, isouter=True).where(Timetable.day >= last_monday).where(Timetable.day < last_monday + timedelta(days=7))
+
+    week_data_statement = (
+        select(Timetable, UserDB)
+        .join(UserDB, isouter=True)
+        .where(Timetable.day >= last_monday)
+        .where(Timetable.day < last_monday + timedelta(days=7))
+    )
+
     week_data = session.exec(week_data_statement).all()
-    if(len(week_data) == 0):
-        if(last_monday > current_date and ((last_monday - current_date) <= timedelta(weeks=2))):
+
+    if len(week_data) == 0:
+        # Generate data for the current week or the next 2 weeks
+        if last_monday >= get_last_monday(current_date) and (
+            last_monday - get_last_monday(current_date) <= timedelta(weeks=2)
+        ):
             add_weeks_dates(last_monday)
-            return get_timetable(session=session, week=last_monday)
+
+            # Re-fetch the newly generated data
+            week_data = session.exec(week_data_statement).all()
 
     timetable = []
-    for (row,user) in week_data:
+
+    for row, user in week_data:
         name = None
-        if(user):
+        if user:
             name = user.first_name
-        timetable.append(TimetablePublic(
-            id=row.id,
-            day=row.day,
-            time=row.time,
-            assigned=name
-        ))
-    return TimetableData(weekStart=last_monday, timetable=timetable)
+
+        timetable.append(
+            TimetablePublic(
+                id=row.id,
+                day=row.day,
+                time=row.time,
+                assigned=name
+            )
+        )
+
+    return TimetableData(
+        weekStart=last_monday,
+        timetable=timetable
+    )
 
 class UpdateTimetableRequest(BaseModel):
     dayID : int
