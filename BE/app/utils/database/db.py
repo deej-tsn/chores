@@ -276,6 +276,19 @@ def get_home_chores_for_period(
         for assignment, chore in rows
     ]
 
+def get_home_chore_roster(period_start: datetime.date) -> dict[str, list[str]]:
+    """Chore name -> claimant first names for one fortnight (used by the email).
+
+    Seeds the period first: the next fortnight is normally only created when
+    somebody opens it, and the reminder runs before that happens.
+    """
+    with Session(engine) as session:
+        add_period_assignments(session, period_start)
+        return {
+            chore.name: [first_name for _, first_name in claims]
+            for _, chore, claims in get_home_chores_for_period(session, period_start)
+        }
+
 def create_test_user(test_email : str, test_password : str):
     test_user = UserDB(
         email=test_email,
