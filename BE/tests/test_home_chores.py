@@ -234,7 +234,7 @@ def test_update_home_chore_role_matrix(client: TestClient, session: Session, rol
     if role in ["user", "admin"]:
         assert response.status_code == 200
     else:
-        assert response.status_code == 401  # matches PATCH /timetable's convention
+        assert response.status_code == 401  # matches PATCH /chores/dog-walking's convention
 
 
 def test_unauthenticated_cannot_claim(client: TestClient):

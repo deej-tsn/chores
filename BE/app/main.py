@@ -186,7 +186,7 @@ def read_user(user_id: int, session: SessionDep, _ : UserDB = Depends(require_ad
 def get_user_from_token(user : TokenData = Depends(get_current_user)) -> TokenData:
     return user
 
-@app.get("/timetable")
+@app.get("/chores/dog-walking")
 def get_timetable(session : SessionDep, week : date = Depends(week_dependency)) -> TimetableData:
     current_date = date.today()
     last_monday = get_last_monday(week)
@@ -236,7 +236,7 @@ class UpdateTimetableRequest(BaseModel):
     assign_to_self : bool | None = None
     week : date
 
-@app.patch("/timetable")
+@app.patch("/chores/dog-walking")
 def update_timetable(data : UpdateTimetableRequest, session : SessionDep, user: TokenData = Depends(get_current_user)) -> TimetableData:
     assignment = None
     if(data.assign_to_self):
@@ -302,7 +302,7 @@ def update_home_chore(
     if user_db is None:
         raise HTTPException(status_code=404, detail="User Not Found")
     if user_db.role not in ["admin", "user"]:
-        # Same 401 convention as PATCH /timetable — the role matrix asserts it.
+        # Same 401 convention as PATCH /chores/dog-walking — the role matrix asserts it.
         raise HTTPException(status_code=401, detail="Unauthorised")
 
     assignment = session.get(HomeChoreAssignment, data.assignmentID)

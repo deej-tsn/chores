@@ -7,7 +7,8 @@ to users without those roles. The backend has the following role-based restricti
 - GET /users/ : requires admin role
 - GET /users/{user_id} : requires admin role
 - GET /count : requires admin role
-- PATCH /timetable : requires user or admin role for assigning to self
+- PATCH /chores/dog-walking : requires user or admin role for assigning to self
+- PATCH /chores/home : requires user or admin role for claiming a chore
 
 Note: There are no POST endpoints that require specific roles in the current API.
 The POST /token and POST /users/ are open for authentication and registration.
@@ -116,7 +117,7 @@ def test_update_timetable_requires_user_or_admin(client: TestClient, session: Se
 
     # Try to update timetable (assign to self)
     from datetime import date
-    response = client.patch("/timetable", json={
+    response = client.patch("/chores/dog-walking", json={
         "dayID": day_id,
         "assign_to_self": True,
         "week": str(date.today())
@@ -129,14 +130,22 @@ def test_update_timetable_requires_user_or_admin(client: TestClient, session: Se
 
 
 def test_unauthenticated_cannot_access_protected_endpoints(client: TestClient):
-    # Without login, try protected endpoints
-    endpoints = ["/users/", "/users/1", "/count", "/timetable"]
-    for endpoint in endpoints:
-        if endpoint == "/timetable":
-            response = client.patch(endpoint, json={"dayID": 1, "assign_to_self": True, "week": "2023-01-01"})
-        else:
-            response = client.get(endpoint)
-        assert response.status_code == 401  # Unauthorized
+    # Read endpoints that require a logged-in user
+    for endpoint in ["/users/", "/users/1", "/count"]:
+        assert client.get(endpoint).status_code == 401  # Unauthorized
+
+    # Write endpoints need a valid body before the auth check is reached
+    dog_response = client.patch(
+        "/chores/dog-walking",
+        json={"dayID": 1, "assign_to_self": True, "week": "2023-01-01"},
+    )
+    assert dog_response.status_code == 401
+
+    home_response = client.patch(
+        "/chores/home",
+        json={"assignmentID": 1, "claimed": True, "period": "2023-01-01"},
+    )
+    assert home_response.status_code == 401
 
 
 def test_logout_clears_cookie(client: TestClient, session: Session):
