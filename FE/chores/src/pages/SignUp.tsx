@@ -70,7 +70,7 @@ export default function SignUp() {
     }
   }
 
-  if (user) return <Navigate to="/home" replace />;
+  if (user) return <Navigate to="/chores/dog-walking" replace />;
 
   return (
     <div className="w-screen h-screen bg-[#FFF8F2] flex items-center justify-center p-4 animate-in fade-in duration-500">

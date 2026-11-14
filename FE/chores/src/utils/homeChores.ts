@@ -1,3 +1,5 @@
+import { addDays, parseISODate } from "@/utils/dates";
+
 /** One chore instance as returned by `GET /chores/home`. */
 export type HomeChoreApi = {
   id: number;
@@ -22,24 +24,6 @@ export type HomeChorePeriod = {
 export const FORTNIGHT_ANCHOR = "2025-12-08";
 const FORTNIGHT_DAYS = 14;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
-
-/** Parse a `YYYY-MM-DD` string as local midnight — `new Date(s)` treats it as UTC. */
-export function parseISODate(value: string): Date {
-  const [year, month, day] = value.split("-").map(Number);
-  return new Date(year, month - 1, day);
-}
-
-/** Format as `YYYY-MM-DD` in local time — `toISOString()` can slip a day near midnight. */
-export function formatISODate(date: Date): string {
-  const month = `${date.getMonth() + 1}`.padStart(2, "0");
-  const day = `${date.getDate()}`.padStart(2, "0");
-  return `${date.getFullYear()}-${month}-${day}`;
-}
-
-/** Calendar-safe day arithmetic on a copy: no mutation, no DST drift. */
-export function addDays(date: Date, days: number): Date {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate() + days);
-}
 
 export function addFortnights(date: Date, count: number): Date {
   return addDays(date, count * FORTNIGHT_DAYS);

@@ -6,11 +6,11 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import HomeChoreCard from "@/components/HomeChoreCard";
 import SummaryBox from "@/components/Summary";
+import { formatISODate } from "@/utils/dates";
 import {
   addFortnights,
   convertPeriodResponse,
   countClaimants,
-  formatISODate,
   getFortnightStart,
   periodLabel,
   type HomeChoreApi,

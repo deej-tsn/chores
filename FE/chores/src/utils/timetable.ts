@@ -69,7 +69,7 @@ export const DefaultTimeTable: TimeTableDict = {
   },
 };
 
-/** One row as returned by `GET /timetable` (date fields are ISO strings). */
+/** One row as returned by `GET /chores/dog-walking` (date fields are ISO strings). */
 export type TimetableApiDay = {
   id: number;
   time: "Morning" | "Evening";
@@ -77,7 +77,7 @@ export type TimetableApiDay = {
   assigned: string | null;
 };
 
-/** Payload of `GET /timetable` and `PATCH /timetable`. */
+/** Payload of `GET /chores/dog-walking` and `PATCH /chores/dog-walking`. */
 export type TimetableResponse = {
   weekStart: string;
   timetable: TimetableApiDay[];

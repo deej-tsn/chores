@@ -33,7 +33,7 @@ export default function EditPanel({week, setTimetable }: EditPanelProps) {
     }
 
     try {
-      const res = await fetch(fetchURL(`/timetable`), {
+      const res = await fetch(fetchURL(`/chores/dog-walking`), {
         method: "PATCH",
         credentials: "include",
         headers: { "Content-Type": "application/json" },

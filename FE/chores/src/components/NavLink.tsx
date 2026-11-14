@@ -7,7 +7,10 @@ interface NavLinkProps {
 
 export default function NavLink({ path, label }: NavLinkProps) {
   const location = useLocation();
-  const isActive = location.pathname.startsWith(path);
+  // Prefix-with-slash, not a bare startsWith: "/home" must not match
+  // "/home-chores", and "chores/home" must not stay lit on a sibling route.
+  const isActive =
+    location.pathname === path || location.pathname.startsWith(`${path}/`);
 
   const baseClasses =
     "p-2 rounded-4xl mx-2 font-bold transition-colors duration-200 text-gray-100";

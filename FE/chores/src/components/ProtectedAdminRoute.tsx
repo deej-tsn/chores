@@ -17,7 +17,7 @@ export default function ProtectedAdminRoute({
   }
 
   if(user.role !== 'admin'){
-    return <Navigate to={"/home"} replace />
+    return <Navigate to={"/chores/dog-walking"} replace />
   }
 
   return (
