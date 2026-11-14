@@ -1,6 +1,6 @@
 # Plan: dog chores → subsection of a multi-chore app (+ fortnightly home chores)
 
-**Status:** draft — awaiting confirmation on 4 open decisions (§12)
+**Status:** implemented on this branch (§13 lists the commits); §12 records the choices made
 **Branch:** `plan/home-chores`
 **Date:** 2026-04
 **Scope:** `BE/`, `FE/chores/`, docs
@@ -296,16 +296,18 @@ Notes:
 - `verbatimModuleSyntax` is on: new types must be imported with `import type`. `noUnusedLocals` means a
   stray import fails `npm run build`.
 
-## 12. Open decisions (blocking)
+## 12. Decisions taken
 
-1. **Group claims (join table) vs single owner FK?** Recommendation: join table (§5.1).
-2. **Inline claim vs modal `EditPanel`?** Inline is better UX for a multi-person toggle and leaves the
-   dog `EditPanel`/`EditContext` untouched (smaller diff). Modal keeps symmetry with the dog rota.
-   Recommendation: inline.
-3. **API naming:** commit to the `/chores/dog-walking` rename now, or keep `/timetable` and only add
-   `/chores/home`? Recommendation: rename (both apps ship together; tests are the only other consumer).
-4. **Adding "chore Y" later:** append to `DEFAULT_HOME_CHORES` (requires redeploy) or add admin CRUD
-   (`POST`/`PATCH /chores/home/catalogue`)? Recommendation: constant now; admin CRUD as its own ticket.
+All four were resolved in favour of the recommendations:
+
+1. **Group claims via the join table** (§5.1). `HomeChoreClaim` allows several owners, so "me and person
+   X" needs no extra work and no future migration.
+2. **Inline claim, no modal.** `HomeChoreCard` toggles a claim directly; `EditPanel`/`EditContext` stay
+   dog-rota only. Claiming is a one-click action; a modal would be friction and a larger diff.
+3. **Renamed the dog rota to `/chores/dog-walking`.** No alias: the SPA ships in the same branch and the
+   tests were the only other consumer.
+4. **Catalogue stays code-seeded** (`DEFAULT_HOME_CHORES`). Admin CRUD is a separate ticket; adding a
+   chore today means a redeploy.
 
 ## 13. Delivery sequence
 
@@ -324,6 +326,13 @@ do not bundle fixes.
 
 Commits 1–4 should land together on the feature branch before deploy, since commit 2 breaks the live FE
 until commit 3 ships.
+
+### 13.1 Outcome
+
+All six landed as planned (may also include a `utils/dates.ts` extraction so both pages share one
+calendar-safe date implementation, and `DogChores` drops `ONE_WEEK_MS`). Verification at the end of the
+branch: `uv run pytest -v` 58 passed, `uv run ruff check .` unchanged 6-finding baseline, `npm run build`
+passes, `npm run lint` clean.
 
 ## 14. Documentation updates (repo definition of done)
 

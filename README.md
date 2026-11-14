@@ -2,9 +2,13 @@
 
 <img width="5114" height="2704" alt="Chores app home screen" src="https://github.com/user-attachments/assets/8736f8d5-c108-4b40-9157-4d1296b6fd8c" />
 
-A small household **dog-walking rota** app. Users sign up, get a weekly timetable (Monday → Sunday,
-Morning + Evening slots) and assign themselves to the walks they can do. The backend emails a daily
-summary of who is walking today and a Sunday-night reminder to fill in the coming week.
+A small household **chores app** with two sections. Users sign up and get:
+
+- **Dog chores** — a weekly rota (Monday → Sunday, Morning + Evening slots) they assign themselves to.
+  The backend emails a daily summary of who is walking today and a Sunday-night reminder to fill in
+  the coming week.
+- **Home chores** — a fortnightly list (e.g. cleaning the house, grocery shopping) where each chore can
+  be claimed by one person or shared. A reminder is emailed on the Sunday before each new fortnight.
 
 ---
 
@@ -77,7 +81,7 @@ chores/
 │   │   └── utils/
 │   │       ├── auth/jwt.py        # token creation, get_current_user, require_admin
 │   │       ├── auth/password.py   # bcrypt hashing via passlib
-│   │       ├── database/db.py     # SQLModel models, engine, seeding + query helpers
+│   │       ├── database/db.py     # SQLModel models, engine, week/fortnight seeding + queries
 │   │       ├── notifications/resend.py  # APScheduler jobs → Resend emails
 │   │       └── stats/stats.py     # per-person shift counts since START_DATE
 │   ├── data/database.db           # local SQLite (gitignored)
@@ -93,7 +97,7 @@ chores/
     ├── Dockerfile, nginx.conf     # static build served by nginx (SPA fallback)
     └── src/
         ├── main.tsx               # providers + route table
-        ├── pages/                 # Home (timetable), Login, SignUp, Settings, Stats
+        ├── pages/                 # DogChores (rota), HomeChores, Login, SignUp, Settings, Stats
         ├── components/            # Navbar/NavMenu, MergedDayCell, EditPanel, Summary, guards
         ├── components/ui/         # shadcn/ui primitives (button, card, input)
         ├── context/               # UserContext (auth), EditContext (edit panel)
@@ -123,7 +127,7 @@ flowchart LR
     PROXY --> API
     API --> JWT
     API --> DB
-    SCHED -- "09:00 daily summary<br/>Sun 21:00 reminder" --> MAIL
+    SCHED -- "09:00 daily summary<br/>Sun 21:00 dog reminder<br/>Sun 21:05 home chores" --> MAIL
     SCHED --> DB
 ```
 
@@ -139,7 +143,10 @@ flowchart LR
 
 ```mermaid
 erDiagram
-    UserDB ||--o{ Timetable : "assigned"
+    UserDB ||--o{ Timetable : "dog rota"
+    UserDB ||--o{ HomeChoreClaim : claims
+    HomeChore ||--o{ HomeChoreAssignment : "instantiated as"
+    HomeChoreAssignment ||--o{ HomeChoreClaim : "claimed via"
     UserDB {
         int id PK
         string email UK
@@ -155,15 +162,46 @@ erDiagram
         enum time "Morning|Evening"
         int assigned FK "nullable"
     }
+    HomeChore {
+        int id PK
+        string name UK
+        string description
+        bool active
+    }
+    HomeChoreAssignment {
+        int id PK
+        date period_start
+        int chore_id FK
+    }
+    HomeChoreClaim {
+        int id PK
+        int assignment_id FK
+        int user_id FK
+    }
 ```
+
+### Dog rota (weekly)
 
 - One `Timetable` row per **(day, time)** pair — enforced by `UniqueConstraint("day", "time")`. Two
   rows per day, 14 per week.
-- `assigned` is nullable: `NULL` means *unassigned*.
+- `assigned` is nullable: `NULL` means *unassigned*, and a slot has at most one walker.
 - **Weeks are seeded lazily.** `add_weeks_dates(week)` inserts any missing rows for that Monday → Sunday.
-  It runs at startup (DEV only) and again inside `GET /timetable` when the requested week is between
-  the current week and +2 weeks ahead.
+  It runs at startup (DEV only) and again inside `GET /chores/dog-walking` for the current week
+  through +2 weeks ahead.
 - A "week" is always identified by its **Monday** (`get_last_monday()`).
+
+### Home chores (fortnightly)
+
+- `HomeChore` is the catalogue (name + description). `active` is a soft delete, so retiring a chore
+  never breaks its history.
+- `HomeChoreAssignment` is one chore **in one fortnight**, `UNIQUE(period_start, chore_id)`.
+- `HomeChoreClaim` is zero or more owners per assignment, `UNIQUE(assignment_id, user_id)`. Several
+  people can share a chore, so joining an already-claimed chore is normal.
+- A "period" is 14 days anchored to a Monday, `FORTNIGHT_ANCHOR = 2025-12-08` (== `START_DATE`).
+  **This constant is a contract:** changing it re-keys every period and orphans existing claims.
+- Seeding: the catalogue and the current fortnight are created on startup in **every** environment;
+  reads lazily seed the current and next fortnight only. Past periods return empty rather than
+  inventing assignments.
 
 ## API reference
 
@@ -177,11 +215,13 @@ All routes are mounted under the root path `/api`.
 | `GET` | `/users/` | admin | Paginated user list (`offset`, `limit` ≤ 100) |
 | `GET` | `/users/{user_id}` | admin | Single user |
 | `GET` | `/user` | any logged-in | Current user claims from the JWT |
-| `GET` | `/timetable?week=YYYY-MM-DD` | none | Timetable for the week containing/beginning at `week` (defaults to this week) |
-| `PATCH` | `/timetable` | `admin` \| `user` | Assign/unassign the caller to one slot |
-| `GET` | `/count` | admin | Shifts per person since `START_DATE` (`2025-12-08`) |
+| `GET` | `/chores/dog-walking?week=YYYY-MM-DD` | none | Dog rota for the week containing/beginning at `week` (defaults to this week) |
+| `PATCH` | `/chores/dog-walking` | `admin` \| `user` | Assign/unassign the caller to one slot |
+| `GET` | `/chores/home?period=YYYY-MM-DD` | none | Home chores for the fortnight containing `period` (defaults to the current one) |
+| `PATCH` | `/chores/home` | `admin` \| `user` | Claim/leave one home chore for the caller |
+| `GET` | `/count` | admin | Dog shifts per person since `START_DATE` (`2025-12-08`) |
 
-`PATCH /timetable` body:
+`PATCH /chores/dog-walking` body:
 
 ```json
 { "dayID": 42, "assign_to_self": true, "week": "2025-12-08" }
@@ -191,18 +231,30 @@ All routes are mounted under the root path `/api`.
 - `week` is echoed back so the response is the refreshed timetable for that week.
 - There is no admin "assign to *someone else*" path yet — see [Known gaps](#known-gaps).
 
+`PATCH /chores/home` body:
+
+```json
+{ "assignmentID": 7, "claimed": true, "period": "2026-01-05" }
+```
+
+- `claimed` is **explicit**, not a toggle: retries are safe and two people clicking at once cannot
+  clobber each other. Leaving only ever removes the caller's own claim.
+- `period` is normalised to the fortnight's Monday, and the response is the refreshed period.
+- `GET` is public but personalises `claimed_by_me` when a session cookie is present.
+
 ## Roles & permissions
 
-| Role | Timetable view | Assign self | Stats page | User admin endpoints |
-| --- | --- | --- | --- | --- |
-| `guest` | ✅ | ❌ | ❌ | ❌ |
-| `read-only-user` (default on signup) | ✅ | ❌ | ❌ | ❌ |
-| `user` | ✅ | ✅ | ❌ | ❌ |
-| `admin` | ✅ | ✅ | ✅ | ✅ |
+| Role | Dog rota view | Assign self | Home chores view | Claim home chore | Stats page | User admin endpoints |
+| --- | --- | --- | --- | --- | --- | --- |
+| `guest` | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ |
+| `read-only-user` (default on signup) | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ |
+| `user` | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
+| `admin` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 
 The frontend guards routes with `ProtectedRoute` (any user) and `ProtectedAdminRoute` (admin only);
 the UI hides the edit affordances for `guest`/`read-only-user`. **Backend checks are authoritative** —
-`require_admin()` re-reads the role from the DB, and `PATCH /timetable` rejects non-`user`/`admin` roles.
+`require_admin()` re-reads the role from the DB, and both `PATCH` endpoints reject non-`user`/`admin`
+roles with **401**.
 
 ## Environment variables
 
@@ -248,18 +300,21 @@ the UI hides the edit affordances for `guest`/`read-only-user`. **Backend checks
 ## Testing & CI
 
 ```bash
-cd BE && uv run pytest -v     # 26 passed — also `make test`
+cd BE && uv run pytest -v     # 58 passed — also `make test`
 cd FE/chores && npm run build # tsc -b + vite build — passes
-cd FE/chores && npm run lint  # ⚠️ 6 pre-existing errors, see Known gaps
+cd FE/chores && npm run lint  # passes
 ```
 
 - `BE/tests/conftest.py` swaps the app's DB dependency for an **in-memory SQLite** session and a fake
   `Settings` (`secret_key="test-secret"`), so tests never touch `data/database.db` or real email.
 - `test_auth.py` is a parametrised permission matrix over all four roles.
+- `test_home_chores.py` covers fortnight maths (including pre-anchor dates), idempotent seeding,
+  claim/unclaim, shared chores and the role matrix.
+- `test_notifications.py` covers the fortnightly email's date decision; the calendar logic lives in
+  pure functions so it needs no clock freezing.
 - `test_ready.py` mocks the startup hooks to verify DEV/PROD + guest-mode combinations.
-- **The frontend has no test suite** — `npm run build` (tsc + vite) is the real gate. `npm run lint`
-  currently fails on 6 pre-existing issues (see [Known gaps](#known-gaps)); treat that as a baseline,
-  not as damage you caused.
+- **The frontend has no test suite** — `npm run build` (tsc + vite) is the real gate, and `npm run
+  lint` is clean. Both must stay green.
 - CI (`.github/workflows/tests.yml`) runs `uv sync && uv run pytest tests -v` on push to `main` and on
   PRs. ⚠️ It pins Python **3.11** while `pyproject.toml` requires `>=3.13` — see [Known gaps](#known-gaps).
 
@@ -287,17 +342,24 @@ build time, so rebuild the image when the API URL changes.
 
 Documented so nobody has to rediscover them:
 
-- **No migrations.** Schema changes require deleting the SQLite file.
-- **`npm run lint` fails out of the box** (6 errors, 2 warnings) while `npm run build` passes:
-  `no-explicit-any` in `pages/Home.tsx` and `utils/utils.ts`, unused `err` in `pages/Stats.tsx`,
-  `prefer-const` in `utils/timetable.ts`, plus two `exhaustive-deps` warnings in `Home.tsx` and
-  `SignUp.tsx`. Fixing them is a clean-up PR, not a side effect of your feature.
+- **No migrations.** Schema changes require deleting the SQLite file (or a hand-written
+  `ALTER TABLE`). The home-chores work was deliberately additive so it needed neither — see
+  [`plan/home-chores.md`](./plan/home-chores.md).
+- **Backend Ruff baseline.** `cd BE && uv run ruff check .` reports 6 pre-existing `F401`/`F841`
+  findings (`User` and `Date` imports, `email = resend.Emails.send(...)` in two senders, two unused
+  test imports). Introduce no new ones; fixing the baseline is its own change.
+- **Home chores share one cadence.** Everything is fortnightly; a mixed weekly/fortnightly list needs
+  a `cadence` column and two seeding branches.
+- **The chore catalogue is code-seeded.** Adding a chore means editing `DEFAULT_HOME_CHORES` and
+  redeploying; admin CRUD was deliberately deferred.
+- **`FORTNIGHT_ANCHOR` is a constant, not config.** Changing it re-keys every period — treat it like
+  the API contract it is.
 - **`@app.on_event("startup")` is deprecated** in FastAPI; the lifespan-context migration is pending
   (tests patch `on_startup` by name, so migrate both together).
 - **CI Python version mismatch** (3.11 in workflow vs `>=3.13` in `pyproject.toml`).
 - **`Settings` uses `Field(..., env=...)`** which pydantic-settings v2 largely ignores; env names are
   matched case-insensitively by field name, so this works by luck rather than design.
-- **Admins cannot assign a slot to another person** — `PATCH /timetable` only supports *self*.
+- **Admins cannot assign a slot to another person** — both `PATCH` endpoints only support *self*.
 - **Guest credentials are hardcoded** in `FE/chores/src/pages/Login.tsx` and in
   `create_guest_user()`; changing one requires changing the other.
 - **Scheduler is in-process** — multiple uvicorn workers would duplicate emails.
@@ -316,3 +378,4 @@ Documented so nobody has to rediscover them:
 | [`BE/AGENTS.md`](./BE/AGENTS.md) | Backend rules: uv, SQLModel, testing, patterns to follow |
 | [`FE/chores/README.md`](./FE/chores/README.md) | Frontend reference: structure, routes, env |
 | [`FE/chores/AGENTS.md`](./FE/chores/AGENTS.md) | Frontend rules: TS strictness, aliases, styling, data flow |
+| [`plan/home-chores.md`](./plan/home-chores.md) | Plan and rationale for the two-section chores app |

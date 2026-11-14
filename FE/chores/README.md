@@ -1,7 +1,8 @@
 # Frontend Service (FE)
 
-React + Vite SPA for the chores app: login/signup, the protected weekly timetable, and an admin-only
-stats page. All API calls go to the backend configured via `VITE_API_BASE` using the auth cookie.
+React + Vite SPA for the chores app: login/signup, two protected chore sections (weekly dog rota and
+fortnightly home chores), and an admin-only stats page. All API calls go to the backend configured via
+`VITE_API_BASE` using the auth cookie.
 
 > Working with an AI agent? Read [`AGENTS.md`](./AGENTS.md) in this folder plus the repo root
 > [`AGENTS.md`](../../AGENTS.md) for conventions, data-flow contracts and gotchas.
@@ -16,20 +17,24 @@ react-hook-form · Chart.js / react-chartjs-2 · lucide-react · shadcn/ui primi
 | Path | Purpose |
 | --- | --- |
 | `src/main.tsx` | bootstrap: `UserProvider` → `EditPanelProvider` → `BrowserRouter` → route table |
-| `src/pages/Home.tsx` | weekly timetable, week navigation, days-to-assign counter, summary popover |
+| `src/pages/DogChores.tsx` | weekly dog rota, week navigation, days-to-assign counter, summary popover |
+| `src/pages/HomeChores.tsx` | fortnightly home chores, period navigation, chores-to-claim counter, join/leave |
 | `src/pages/Login.tsx` | cookie login + Guest Mode button |
 | `src/pages/SignUp.tsx` | registration (react-hook-form) |
 | `src/pages/Stats.tsx` | admin-only bar chart of shifts per person |
 | `src/pages/Settings.tsx` | placeholder stub |
 | `src/components/MergedDayCell.tsx` | one day column, Morning + Evening cells |
-| `src/components/EditPanel.tsx` | modal for assigning/unassigning a slot |
-| `src/components/Summary.tsx` | per-person counts for the visible week |
+| `src/components/HomeChoreCard.tsx` | one chore, its claimants, and the join/leave toggle |
+| `src/components/EditPanel.tsx` | modal for assigning/unassigning a dog-rota slot |
+| `src/components/Summary.tsx` | per-person counts popover; each page passes its own counts |
 | `src/components/Navbar.tsx`, `NavMenu.tsx`, `NavLink.tsx` | top bar, profile menu, nav links |
 | `src/components/ProtectedRoute.tsx`, `ProtectedAdminRoute.tsx` | route guards + page chrome |
 | `src/context/UserContext.ts` | auth state (`user`, `token` toggle) |
 | `src/context/EditContext.ts` | which slot the edit panel is open for |
 | `src/utils/fetch.ts` | `fetchURL(path)` → `${VITE_API_BASE}/${path}` |
-| `src/utils/timetable.ts` | timetable types, API→UI transform, Monday/week math |
+| `src/utils/timetable.ts` | dog-rota types, API→UI transform, Monday/week math |
+| `src/utils/homeChores.ts` | home-chore types, fortnight anchoring/labels, claimant counts |
+| `src/utils/dates.ts` | calendar-safe date helpers (`parseISODate`, `formatISODate`, `addDays`) |
 | `src/components/ui/` | shadcn/ui primitives (button, card, input) |
 
 ## Routes
@@ -37,9 +42,11 @@ react-hook-form · Chart.js / react-chartjs-2 · lucide-react · shadcn/ui primi
 | Path | Guard | Page |
 | --- | --- | --- |
 | `/` | — | redirects to `/login` |
-| `/login` | public (redirects to `/home` when logged in) | `Login` |
+| `/login` | public (redirects to `/chores/dog-walking` when logged in) | `Login` |
 | `/sign-up` | public | `SignUp` |
-| `/home` | `ProtectedRoute` | `Home` |
+| `/chores/dog-walking` | `ProtectedRoute` | `DogChores` |
+| `/chores/home` | `ProtectedRoute` | `HomeChores` |
+| `/home` | `ProtectedRoute` | redirects to `/chores/dog-walking` |
 | `/settings` | `ProtectedRoute` | `Settings` (stub) |
 | `/stats` | `ProtectedAdminRoute` | `Stats` |
 
@@ -91,5 +98,10 @@ There is no test suite; lint + build are the checks.
   match the backend's `create_guest_user()`.
 - `verbatimModuleSyntax` + `erasableSyntaxOnly` are enabled: use `import type` and avoid enums.
   `noUnusedLocals`/`noUnusedParameters` mean unused imports break `npm run build`.
-- Week navigation uses millisecond arithmetic (`ONE_WEEK_MS`), not `setDate()`, to survive DST.
+- Date navigation goes through `src/utils/dates.ts` (`addDays`) rather than raw millisecond sums or
+  `setDate()`: adding days via the `Date` constructor keeps the calendar date stable across DST.
+- `NavLink` matches exactly or with a trailing slash, so `/chores/dog-walking` cannot light up
+  `/chores/home`. Keep that matcher if you add routes.
+- `HomeChores` claims with an explicit `claimed` flag and uses the `PATCH` response as the new state;
+  there is no edit modal for home chores — `EditPanel` is dog-rota only.
 - `components/Snackbar.tsx`, `context/SnackbarContext.ts` and `pages/Settings.tsx` are unused stubs.
