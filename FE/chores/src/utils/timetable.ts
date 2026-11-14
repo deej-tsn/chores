@@ -107,6 +107,22 @@ export function convertDataToTimeTableType(
   return { weekStart: weekStart, timetable: timetable };
 }
 
+/** Per-person slot counts for the summary popover; empty slots count as unassigned. */
+export function countAssignees(
+  timetable: TimeTableDict,
+): Record<string, number> {
+  return Object.values(timetable).reduce<Record<string, number>>(
+    (counts, day) => {
+      [day.Morning, day.Evening].forEach((shift) => {
+        const name = shift.assignee ?? "Unassigned";
+        counts[name] = (counts[name] ?? 0) + 1;
+      });
+      return counts;
+    },
+    {},
+  );
+}
+
 export function getMonday() {
   const d = new Date();
   const day = d.getDay(),

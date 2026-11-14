@@ -18,6 +18,7 @@ export default function Navbar({ user }: NavbarProps) {
       {/* Left Page Options */}
       <div className="h-full flex items-center grow gap-4">
         <NavLink path="/home" label="Home" />
+        <NavLink path="/chores/home" label="Home chores" />
         {user.role == "admin" && <NavLink path="/stats" label="Stats" />}
       </div>
       {/* Right User Profile */}

@@ -2,6 +2,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import "./index.css";
 import Home from "./pages/Home.tsx";
+import HomeChores from "./pages/HomeChores.tsx";
 import { BrowserRouter, Navigate, Route } from "react-router";
 import { Routes } from "react-router";
 import Settings from "./pages/Settings.tsx";
@@ -22,6 +23,7 @@ createRoot(document.getElementById("root")!).render(
             <Route index element={<Navigate to="/login" />} />
             <Route element={<ProtectedRoute />}>
               <Route path="/home" element={<Home />} />
+              <Route path="/chores/home" element={<HomeChores />} />
 
               <Route path="/settings" element={<Settings />} />
             </Route>

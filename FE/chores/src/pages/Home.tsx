@@ -2,6 +2,7 @@ import { useCallback, useContext, useEffect, useState } from "react";
 import { UserContext } from "../context/UserContext";
 import {
   convertDataToTimeTableType,
+  countAssignees,
   daysOfWeek,
   DefaultTimeTable,
   diffInDates,
@@ -139,7 +140,7 @@ function Home() {
               >
                 <Info className="w-5 h-5" />
                 {showSummaryBox && (
-                  <SummaryBox timetable={timetableData.timetable} />
+                  <SummaryBox counts={countAssignees(timetableData.timetable)} />
                 )}
               </div>
             </div>
