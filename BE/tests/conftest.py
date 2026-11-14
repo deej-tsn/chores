@@ -5,7 +5,14 @@ from sqlmodel.pool import StaticPool
 from datetime import date, timedelta
 
 from app.main import app
-from app.utils.database.db import get_session, Timetable, TimeSlot
+from app.utils.database.db import (
+    HomeChore,
+    add_period_assignments,
+    get_fortnight_start,
+    get_session,
+    Timetable,
+    TimeSlot,
+)
 from app.config import get_settings, get_settings_dep, Settings
 
 
@@ -30,7 +37,15 @@ def session_fixture():
                     assigned=None
                 )
                 session.add(timetable_entry)
+
+        # Home chores: a catalogue plus the current fortnight's assignments.
+        session.add_all([
+            HomeChore(name="Clean the house", description="Whole-house clean."),
+            HomeChore(name="Grocery shopping", description="Household grocery shop."),
+        ])
         session.commit()
+        add_period_assignments(session, get_fortnight_start())
+
         yield session
 
 

@@ -60,6 +60,29 @@ def get_current_user(request : Request, settings: Settings = Depends(get_setting
         raise credentials_exception
     return TokenData(**payload)
 
+def get_optional_user(request : Request, settings: Settings = Depends(get_settings_dep), session : Session = Depends(get_session)) -> TokenData | None:
+    """Like `get_current_user`, but returns None for anonymous/invalid callers.
+
+    Used by public read endpoints that still personalise their response
+    (e.g. `claimed_by_me` on the home chores period).
+    """
+    token = request.cookies.get("access_token")
+    if token is None:
+        return None
+    try:
+        payload : dict[str, any] = jwt.decode(token, settings.secret_key, algorithms=[ALGORITHM])
+        email: str | None = payload.get('sub')
+        if email is None:
+            return None
+        user = TokenData(**payload)
+    except (JWTError, ValueError, TypeError):
+        return None
+
+    statement = select(UserDB).where(UserDB.email == email)
+    if not session.exec(statement).first():
+        return None
+    return user
+
 def require_admin(session : SessionDep, current_user: TokenData = Depends(get_current_user)) -> UserDB:
     ## search db from role
     credentials_exception = HTTPException(

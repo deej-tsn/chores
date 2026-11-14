@@ -19,6 +19,8 @@ from app.config import Settings
 class TestStartupReadiness:
     """Test the on_startup function with various configuration options."""
 
+    @patch('app.main.seed_current_home_chore_period')
+    @patch('app.main.create_home_chores')
     @patch('app.main.create_db_and_tables')
     @patch('app.main.start_notifications_scheduler')
     @patch('app.main.create_guest_user')
@@ -28,7 +30,9 @@ class TestStartupReadiness:
         mock_get_settings,
         mock_create_guest_user,
         mock_start_notifications_scheduler,
-        mock_create_db_and_tables
+        mock_create_db_and_tables,
+        mock_create_home_chores,
+        mock_seed_current_home_chore_period
     ):
         """Test startup in PROD environment with guest mode enabled."""
         # Setup
@@ -49,7 +53,11 @@ class TestStartupReadiness:
         mock_create_db_and_tables.assert_called_once()
         mock_start_notifications_scheduler.assert_called_once_with(settings)
         mock_create_guest_user.assert_called_once()
+        mock_create_home_chores.assert_called_once()
+        mock_seed_current_home_chore_period.assert_called_once()
 
+    @patch('app.main.seed_current_home_chore_period')
+    @patch('app.main.create_home_chores')
     @patch('app.main.create_db_and_tables')
     @patch('app.main.start_notifications_scheduler')
     @patch('app.main.create_guest_user')
@@ -59,7 +67,9 @@ class TestStartupReadiness:
         mock_get_settings,
         mock_create_guest_user,
         mock_start_notifications_scheduler,
-        mock_create_db_and_tables
+        mock_create_db_and_tables,
+        mock_create_home_chores,
+        mock_seed_current_home_chore_period
     ):
         """Test startup in PROD environment with guest mode disabled."""
         # Setup
@@ -80,7 +90,11 @@ class TestStartupReadiness:
         mock_create_db_and_tables.assert_called_once()
         mock_start_notifications_scheduler.assert_called_once_with(settings)
         mock_create_guest_user.assert_not_called()
+        mock_create_home_chores.assert_called_once()
+        mock_seed_current_home_chore_period.assert_called_once()
 
+    @patch('app.main.seed_current_home_chore_period')
+    @patch('app.main.create_home_chores')
     @patch('app.main.create_test_user')
     @patch('app.main.add_weeks_dates')
     @patch('app.main.create_db_and_tables')
@@ -94,7 +108,9 @@ class TestStartupReadiness:
         mock_start_notifications_scheduler,
         mock_create_db_and_tables,
         mock_add_weeks_dates,
-        mock_create_test_user
+        mock_create_test_user,
+        mock_create_home_chores,
+        mock_seed_current_home_chore_period
     ):
         """Test startup in DEV environment with guest mode enabled and valid test credentials."""
         # Setup
@@ -120,6 +136,8 @@ class TestStartupReadiness:
             test_email="test@example.com",
             test_password="password123"
         )
+        mock_create_home_chores.assert_called_once()
+        mock_seed_current_home_chore_period.assert_called_once()
 
     @patch('app.main.create_db_and_tables')
     @patch('app.main.start_notifications_scheduler')
@@ -175,6 +193,8 @@ class TestStartupReadiness:
         with pytest.raises(KeyError, match="No 'TEST_USER_PASSWORD' found in env"):
             on_startup()
 
+    @patch('app.main.seed_current_home_chore_period')
+    @patch('app.main.create_home_chores')
     @patch('app.main.create_test_user')
     @patch('app.main.add_weeks_dates')
     @patch('app.main.create_db_and_tables')
@@ -188,7 +208,9 @@ class TestStartupReadiness:
         mock_start_notifications_scheduler,
         mock_create_db_and_tables,
         mock_add_weeks_dates,
-        mock_create_test_user
+        mock_create_test_user,
+        mock_create_home_chores,
+        mock_seed_current_home_chore_period
     ):
         """Test startup in DEV environment with guest mode disabled and valid test credentials."""
         # Setup
@@ -209,6 +231,8 @@ class TestStartupReadiness:
         mock_create_db_and_tables.assert_called_once()
         mock_start_notifications_scheduler.assert_called_once_with(settings)
         mock_create_guest_user.assert_not_called()
+        mock_create_home_chores.assert_called_once()
+        mock_seed_current_home_chore_period.assert_called_once()
         mock_add_weeks_dates.assert_called_once()
         mock_create_test_user.assert_called_once_with(
             test_email="test@example.com",

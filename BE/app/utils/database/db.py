@@ -80,6 +80,48 @@ class TimetableData(BaseModel):
 
 
 # ─────────────────────────────────────────────
+#           HOME CHORES (FORTNIGHTLY)
+# ─────────────────────────────────────────────
+
+class HomeChore(SQLModel, table=True):
+    """Catalogue of fortnightly household chores (house cleaning, grocery shopping, ...)."""
+    id: int | None = Field(default=None, primary_key=True)
+    name: str = Field(index=True, nullable=False, unique=True)
+    description: str = Field(default="")
+    # Soft delete: deactivating a chore keeps its historical assignments intact.
+    active: bool = Field(default=True)
+
+class HomeChoreAssignment(SQLModel, table=True):
+    """One chore, in one fortnight. `period_start` is the anchored fortnight Monday."""
+    id: int | None = Field(default=None, primary_key=True)
+    period_start: datetime.date = Field(nullable=False, index=True)
+    chore_id: int = Field(nullable=False, foreign_key="homechore.id")
+    __table_args__ = (
+        UniqueConstraint("period_start", "chore_id", name="only_single_chore_per_period"),
+    )
+
+class HomeChoreClaim(SQLModel, table=True):
+    """Zero or more owners per assignment — the same chore can be shared."""
+    id: int | None = Field(default=None, primary_key=True)
+    assignment_id: int = Field(nullable=False, foreign_key="homechoreassignment.id")
+    user_id: int = Field(nullable=False, foreign_key="userdb.id")
+    __table_args__ = (
+        UniqueConstraint("assignment_id", "user_id", name="only_single_claim_per_user"),
+    )
+
+class HomeChorePublic(BaseModel):
+    id: int                    # assignment id; PATCH targets this
+    chore: str
+    description: str
+    claimed_by: list[str]
+    claimed_by_me: bool        # computed server-side: first names are not unique keys
+
+class HomeChorePeriodData(BaseModel):
+    periodStart: datetime.date
+    chores: list[HomeChorePublic]
+
+
+# ─────────────────────────────────────────────
 #               UTILS
 # ─────────────────────────────────────────────
 
@@ -90,6 +132,21 @@ def get_last_monday(date: datetime.date | None = None):
 
 def week_dependency(week: datetime.date | None = None):
     return get_last_monday(week)
+
+# Fortnights are anchored to a fixed Monday. This is a permanent contract:
+# changing it re-keys every existing period and orphans existing claims.
+FORTNIGHT_ANCHOR = datetime.date(2025, 12, 8)
+FORTNIGHTS_IN_DAYS = 14
+
+def get_fortnight_start(d: datetime.date | None = None) -> datetime.date:
+    """Normalise any date to the Monday that starts its fortnight."""
+    d = d or datetime.date.today()
+    # Floor division keeps pre-anchor dates in the correct earlier period.
+    offset = ((d - FORTNIGHT_ANCHOR).days // FORTNIGHTS_IN_DAYS) * FORTNIGHTS_IN_DAYS
+    return FORTNIGHT_ANCHOR + datetime.timedelta(days=offset)
+
+def fortnight_dependency(period: datetime.date | None = None) -> datetime.date:
+    return get_fortnight_start(period)
 
 def get_dog_walkers_for_today() -> dict:
     today = datetime.date.today()
@@ -140,6 +197,84 @@ def add_weeks_dates(week : datetime.date | None = None):
         session.add_all(new_entries)
         session.commit()
 
+
+DEFAULT_HOME_CHORES = (
+    ("Clean the house", "Whole-house clean: kitchen, bathroom, floors."),
+    ("Grocery shopping", "Run the household grocery shop."),
+)
+
+def create_home_chores() -> None:
+    """Insert any missing catalogue rows. Safe to run on every startup."""
+    with Session(engine) as session:
+        existing_names = set(session.exec(select(HomeChore.name)).all())
+        new_chores = [
+            HomeChore(name=name, description=description)
+            for name, description in DEFAULT_HOME_CHORES
+            if name not in existing_names
+        ]
+        if not new_chores:
+            return
+        session.add_all(new_chores)
+        session.commit()
+
+def add_period_assignments(session: Session, period_start: datetime.date) -> None:
+    """Insert the missing (period, chore) rows for one fortnight.
+
+    Takes the caller's session on purpose. `add_weeks_dates()` opens its own
+    `Session(engine)`, which escapes the `get_session` test override and writes
+    to the real database — do not copy that pattern here.
+    """
+    period_start = get_fortnight_start(period_start)
+    active_chores = session.exec(select(HomeChore).where(HomeChore.active)).all()
+    existing_chore_ids = set(
+        session.exec(
+            select(HomeChoreAssignment.chore_id).where(
+                HomeChoreAssignment.period_start == period_start
+            )
+        ).all()
+    )
+    new_assignments = [
+        HomeChoreAssignment(period_start=period_start, chore_id=chore.id)
+        for chore in active_chores
+        if chore.id is not None and chore.id not in existing_chore_ids
+    ]
+    if not new_assignments:
+        return
+    session.add_all(new_assignments)
+    session.commit()
+
+def seed_current_home_chore_period() -> None:
+    """Startup helper: make sure the current fortnight exists in every environment."""
+    with Session(engine) as session:
+        add_period_assignments(session, get_fortnight_start())
+
+def get_home_chores_for_period(
+    session: Session, period_start: datetime.date
+) -> list[tuple[HomeChoreAssignment, HomeChore, list[tuple[int, str]]]]:
+    """Return (assignment, chore, [(user_id, first_name)]) for one fortnight."""
+    rows = session.exec(
+        select(HomeChoreAssignment, HomeChore)
+        .join(HomeChore, HomeChore.id == HomeChoreAssignment.chore_id)
+        .where(HomeChoreAssignment.period_start == period_start)
+        .order_by(HomeChore.name)
+    ).all()
+
+    claim_rows = session.exec(
+        select(HomeChoreClaim.assignment_id, UserDB.id, UserDB.first_name)
+        .join(UserDB, UserDB.id == HomeChoreClaim.user_id)
+        .join(HomeChoreAssignment, HomeChoreAssignment.id == HomeChoreClaim.assignment_id)
+        .where(HomeChoreAssignment.period_start == period_start)
+        .order_by(UserDB.first_name)
+    ).all()
+
+    claims_by_assignment: dict[int, list[tuple[int, str]]] = {}
+    for assignment_id, user_id, first_name in claim_rows:
+        claims_by_assignment.setdefault(assignment_id, []).append((user_id, first_name))
+
+    return [
+        (assignment, chore, claims_by_assignment.get(assignment.id or -1, []))
+        for assignment, chore in rows
+    ]
 
 def create_test_user(test_email : str, test_password : str):
     test_user = UserDB(
