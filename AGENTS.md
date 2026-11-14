@@ -106,6 +106,12 @@ Local hostnames: `/etc/hosts` needs `127.0.0.1 local.app.com`. Backend dev API b
 `https://local.app.com:8000` (root_path is stripped locally); production is
 `https://chores.dempseypalaciotascon.com/api`.
 
+> **Always use `https://local.app.com:5173`, never `https://localhost:5173`.** Both resolve, but the
+> backend's CORS allow-list and the `local_cert/` TLS certs are issued for `local.app.com` only. The
+> browser sends the *origin string* verbatim, so `localhost` is a different origin and gets
+> `No 'Access-Control-Allow-Origin' header is present`. When a CORS error appears, fix the URL you
+> opened — do **not** add `localhost` variants to `origins` in `BE/app/main.py`.
+
 ## 6. Cross-cutting contracts
 
 **Auth flow**

@@ -20,6 +20,12 @@ npm run build    # tsc -b && vite build  ← also the typecheck gate
 npm run preview
 ```
 
+> **Open `https://local.app.com:5173`, never `https://localhost:5173`.** `vite.config.ts` binds
+> `0.0.0.0:5173` so both hosts serve the app, but the TLS certs are issued for `local.app.com` and the
+> backend CORS allow-list (`BE/app/main.py`) contains only `https://local.app.com:5173`. Using
+> `localhost` produces a CORS `No 'Access-Control-Allow-Origin' header` error on `/token`. Fix the URL,
+> not the CORS list.
+
 There is **no test runner**. `npm run build` (tsc + vite) is the gate and currently passes.
 
 **Lint baseline:** `npm run lint` is clean (the 6 errors previously documented here were fixed). A new

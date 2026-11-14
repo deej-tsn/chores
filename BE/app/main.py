@@ -43,6 +43,9 @@ from .utils.auth.password import get_password_hash, verify_password
 
 from .config import get_settings, get_settings_dep
 
+# The SPA dev origin. Do NOT add https://localhost:5173: the browser sends the origin string
+# verbatim, and the app is meant to be opened at https://local.app.com:5173 (see AGENTS.md).
+# "No 'Access-Control-Allow-Origin' header" on /token means the wrong URL was used.
 origins = [
     "https://local.app.com:5173",
     "https://chores.dempseypalaciotascon.com",
