@@ -4,6 +4,7 @@ import {
   convertDataToTimeTableType,
   formatDate,
   type TimetableData,
+  type TimetableResponse,
 } from "../utils/timetable";
 import { UserContext } from "../context/UserContext";
 import { MdCancel } from "react-icons/md";
@@ -40,7 +41,7 @@ export default function EditPanel({week, setTimetable }: EditPanelProps) {
       });
 
       if (!res.ok) throw new Error(`HTTP error ${res.status}`);
-      const updatedData = await res.json();
+      const updatedData: TimetableResponse = await res.json();
       setTimetable(convertDataToTimeTableType(updatedData));
       setEditPanelState(undefined);
     } catch (err) {

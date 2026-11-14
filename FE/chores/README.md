@@ -1,66 +1,95 @@
 # Frontend Service (FE)
 
-## Overview
-The frontend is a React + Vite app for the chores service. It provides a login/signup flow, a protected weekly timetable UI, admin stats, and a settings page. The UI talks to the backend through a configured API base URL.
+React + Vite SPA for the chores app: login/signup, the protected weekly timetable, and an admin-only
+stats page. All API calls go to the backend configured via `VITE_API_BASE` using the auth cookie.
 
-## Key Technologies
-- React 19
-- Vite
-- TypeScript
-- Tailwind CSS
-- React Router 7
-- react-hook-form
-- Chart.js
-- Lucide icons
-- Custom UI components
+> Working with an AI agent? Read [`AGENTS.md`](./AGENTS.md) in this folder plus the repo root
+> [`AGENTS.md`](../../AGENTS.md) for conventions, data-flow contracts and gotchas.
 
-## Project Structure
-- `src/main.tsx` — app bootstrap, routing, providers
-- `src/context/UserContext.ts` — user auth state and current user fetch
-- `src/pages/Login.tsx` — login screen
-- `src/pages/SignUp.tsx` — signup screen
-- `src/pages/Home.tsx` — timetable view and week navigation
-- `src/pages/Settings.tsx` — user settings
-- `src/pages/Stats.tsx` — admin-only stats page
-- `src/components/ProtectedRoute.tsx` / `ProtectedAdminRoute.tsx` — route guards
-- `src/utils/fetch.ts` — constructs API URLs from `VITE_API_BASE`
+## Stack
 
-## Features
-- login and signup flow
-- secure cookie-based API requests using `credentials: "include"`
-- protected app routes for authenticated users
-- admin-only stats route
-- weekly timetable display with previous/next week navigation
-- assign self to timeslots
-- summary and allocation status
-- form validation for signup/login
+React 19 · Vite (`rolldown-vite`) · TypeScript (strict) · Tailwind CSS 4 · React Router 7 ·
+react-hook-form · Chart.js / react-chartjs-2 · lucide-react · shadcn/ui primitives · ESLint 9
 
-## Environment Variables
-- `VITE_API_BASE` — backend base URL, e.g. `http://localhost:8000/api`
-- `VITE_DISABLE_GUEST` — disable guest mode on FE. If missing will default to false.
+## Layout
 
-## Setup
-1. `cd FE/chores`
-2. Install dependencies:
-   - `npm install`
-   - or `npm ci`
-3. Create a `.env` file with:
-   - `VITE_API_BASE=http://localhost:8000/api`
-4. Run locally:
-   - `npm run dev`
-
-## Build
-- `npm run build`
+| Path | Purpose |
+| --- | --- |
+| `src/main.tsx` | bootstrap: `UserProvider` → `EditPanelProvider` → `BrowserRouter` → route table |
+| `src/pages/Home.tsx` | weekly timetable, week navigation, days-to-assign counter, summary popover |
+| `src/pages/Login.tsx` | cookie login + Guest Mode button |
+| `src/pages/SignUp.tsx` | registration (react-hook-form) |
+| `src/pages/Stats.tsx` | admin-only bar chart of shifts per person |
+| `src/pages/Settings.tsx` | placeholder stub |
+| `src/components/MergedDayCell.tsx` | one day column, Morning + Evening cells |
+| `src/components/EditPanel.tsx` | modal for assigning/unassigning a slot |
+| `src/components/Summary.tsx` | per-person counts for the visible week |
+| `src/components/Navbar.tsx`, `NavMenu.tsx`, `NavLink.tsx` | top bar, profile menu, nav links |
+| `src/components/ProtectedRoute.tsx`, `ProtectedAdminRoute.tsx` | route guards + page chrome |
+| `src/context/UserContext.ts` | auth state (`user`, `token` toggle) |
+| `src/context/EditContext.ts` | which slot the edit panel is open for |
+| `src/utils/fetch.ts` | `fetchURL(path)` → `${VITE_API_BASE}/${path}` |
+| `src/utils/timetable.ts` | timetable types, API→UI transform, Monday/week math |
+| `src/components/ui/` | shadcn/ui primitives (button, card, input) |
 
 ## Routes
-- `/login` — login page
-- `/sign-up` — signup page
-- `/home` — main timetable dashboard
-- `/settings` — user settings
-- `/stats` — admin-only statistics
 
-## Notes
-- The frontend uses `BrowserRouter` and client-side routing.
-- API requests are built with `fetchURL()` from `src/utils/fetch.ts`.
-- Auth state is refreshed whenever the login token changes.
-- Protected routes depend on the user object from `UserContext`.
+| Path | Guard | Page |
+| --- | --- | --- |
+| `/` | — | redirects to `/login` |
+| `/login` | public (redirects to `/home` when logged in) | `Login` |
+| `/sign-up` | public | `SignUp` |
+| `/home` | `ProtectedRoute` | `Home` |
+| `/settings` | `ProtectedRoute` | `Settings` (stub) |
+| `/stats` | `ProtectedAdminRoute` | `Stats` |
+
+## How auth works here
+
+There is no token in JS. `POST /token` sets an `HttpOnly` cookie; every request uses
+`credentials: "include"`. `UserContext` fetches `GET /user` and exposes `{ user, setUser, token,
+setToken }` where `token` is a **boolean toggle** that re-triggers the fetch (login does
+`setToken(!token)`). Logout calls `POST /logout` then `setUser(undefined)` and navigates to `/login`.
+
+Role-dependent UI: `["admin", "user"].includes(user?.role ?? "")` controls edit affordances;
+`user.role === "admin"` controls the Stats nav link. Route guards are UX only — the API is
+authoritative.
+
+## Environment variables
+
+Copy [`.env.example`](./.env.example) to `.env.development` (or `.env.production`). Values are
+**inlined at build time**.
+
+| Variable | Required | Example |
+| --- | --- | --- |
+| `VITE_API_BASE` | ✅ | `https://local.app.com:8000` (dev) or `https://chores.dempseypalaciotascon.com/api` (prod) |
+| `VITE_DISABLE_GUEST` | — | string `"true"` hides the Guest Mode button |
+
+## Setup & run
+
+```bash
+cd FE/chores
+npm ci
+npm run dev      # https://local.app.com:5173
+```
+
+Dev runs over HTTPS with the certs in `./local_cert` (gitignored — regenerate with mkcert) and binds
+`0.0.0.0:5173`; `local.app.com` must resolve to `127.0.0.1` in `/etc/hosts`.
+
+## Build & lint
+
+```bash
+npm run lint     # eslint 9 flat config
+npm run build    # tsc -b && vite build   ← the typecheck gate
+npm run preview
+```
+
+There is no test suite; lint + build are the checks.
+
+## Notes / gotchas
+
+- Guest credentials (`guest@example.com` / `guestpassword`) are hardcoded in `pages/Login.tsx` and must
+  match the backend's `create_guest_user()`.
+- `verbatimModuleSyntax` + `erasableSyntaxOnly` are enabled: use `import type` and avoid enums.
+  `noUnusedLocals`/`noUnusedParameters` mean unused imports break `npm run build`.
+- Week navigation uses millisecond arithmetic (`ONE_WEEK_MS`), not `setDate()`, to survive DST.
+- `components/Snackbar.tsx`, `context/SnackbarContext.ts` and `pages/Settings.tsx` are unused stubs.

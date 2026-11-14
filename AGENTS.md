@@ -1,0 +1,142 @@
+# AGENTS.md
+
+Instructions for AI coding agents (and new contributors) working in this repository. Read this first,
+then the package-level file for the area you are touching:
+
+- Backend work → [`BE/AGENTS.md`](./BE/AGENTS.md)
+- Frontend work → [`FE/chores/AGENTS.md`](./FE/chores/AGENTS.md)
+- Human-oriented overview → [`README.md`](./README.md)
+
+---
+
+## 1. What this project is
+
+A household dog-walking rota. React SPA + FastAPI API + SQLite, with Resend email notifications
+scheduled in-process. Two packages, no monorepo tooling, no shared type generation.
+
+| Package | Path | Stack | Entry point |
+| --- | --- | --- | --- |
+| Backend | `BE/` | Python 3.13, FastAPI, SQLModel/SQLite, uv, APScheduler, Resend | `BE/app/main.py` |
+| Frontend | `FE/chores/` | React 19, Vite (rolldown), TS strict, Tailwind 4, React Router 7 | `FE/chores/src/main.tsx` |
+
+## 2. Golden rules
+
+1. **Run the checks before claiming done.** Backend: `cd BE && uv run pytest -v`. Frontend:
+   `cd FE/chores && npm run build`.
+   ⚠️ `npm run lint` already fails with **6 pre-existing errors** (see
+   [`README.md` → Known gaps](./README.md#known-gaps)). Do not silently bundle those fixes into an
+   unrelated change, and do not blame yourself for them. Never report success on code you did not run.
+2. **Never commit secrets.** `BE/.env`, `BE/data/`, `BE/local_cert/`, `FE/chores/local_cert/` are
+   gitignored. If you need env shape, edit `.env.example`, not `.env`.
+3. **Do not touch generated/vendored paths:** `BE/.venv/`, `**/__pycache__/`, `FE/chores/node_modules/`,
+   `FE/chores/dist/`, `FE/chores/package-lock.json` (regenerate, don't hand-edit).
+4. **The auth cookie is `Secure; SameSite=None`.** Local development is HTTPS-only; never "fix" a
+   local auth problem by relaxing cookie flags or CORS to `*` with credentials.
+5. **Backend authorization is authoritative.** Frontend route guards are UX only. Any new
+   privileged endpoint must use `Depends(require_admin)` (or an explicit role check) server-side.
+   Keep role-list checks in sync with the FE (`["admin", "user"]`) so UI and API agree.
+6. **Keep `README.md` API/route tables in sync** whenever you add, remove, or rename an endpoint or page.
+7. **Prefer the smallest correct diff.** This is a small app; do not introduce state libraries, ORM
+   migration frameworks, or test runners without being asked.
+8. **No migrations exist.** A model change means the local `BE/data/database.db` must be recreated.
+   Say so explicitly when you change a model.
+
+## 3. Repository layout (annotated)
+
+```
+BE/app/main.py                     every route + startup lifecycle; single module by design
+BE/app/config.py                   pydantic-settings Settings (cached via lru_cache)
+BE/app/utils/database/db.py        SQLModel models (User, UserDB, Timetable), engine, seeding,
+                                   query helpers: get_dog_walkers_for_today, get_email_list,
+                                   add_weeks_dates, get_last_monday, create_guest_user, create_test_user
+BE/app/utils/auth/jwt.py           create_access_token, get_current_user, require_admin
+BE/app/utils/auth/password.py      passlib bcrypt hashing
+BE/app/utils/notifications/resend.py  APScheduler jobs + HTML email templates
+BE/app/utils/stats/stats.py        per-person shift counts since START_DATE (2025-12-08)
+BE/tests/conftest.py               in-memory SQLite + fake Settings + dependency overrides
+FE/chores/src/main.tsx             providers + route table (single source of truth for routes)
+FE/chores/src/context/UserContext.ts   auth state; refetches /user when `token` toggles
+FE/chores/src/context/EditContext.ts   which timetable cell the edit panel is editing
+FE/chores/src/utils/fetch.ts       fetchURL("/path") → `${VITE_API_BASE}/path`
+FE/chores/src/utils/timetable.ts   TimetableData types, API→UI transform, Monday/week math
+FE/chores/src/types/user.ts        User / Token / TokenData shapes
+```
+
+## 4. Domain vocabulary
+
+Use these terms consistently in code, tests, and docs:
+
+| Term | Meaning |
+| --- | --- |
+| **week start** | the Monday of a week; `get_last_monday()` normalises any date to it |
+| **slot** | one `Timetable` row = `(day, time)` where `time ∈ {Morning, Evening}` |
+| **assigned** | `Timetable.assigned` FK → `userdb.id`; `NULL` = unassigned |
+| **roles** | `guest`, `read-only-user` (signup default), `user`, `admin` |
+| **guest mode** | shared read-only login, `guest@example.com` / `guestpassword`, toggle `DISABLE_GUEST_MODE` |
+| **seeding** | `add_weeks_dates()` inserting the 14 missing rows for a week |
+
+## 5. Environment & commands
+
+```bash
+# Backend
+cd BE
+uv sync                                  # install from uv.lock (never `pip install`)
+uv run pytest -v                         # tests
+make run                                 # uvicorn --reload with local TLS
+uv run ruff check . && uv run ruff format .
+
+# Frontend
+cd FE/chores
+npm ci                                   # prefer ci over install for lockfile fidelity
+npm run dev                              # vite dev server, https://local.app.com:5173
+npm run build                            # tsc -b && vite build  (passes)
+npm run lint                             # 6 known pre-existing errors — baseline, see README
+```
+
+Local hostnames: `/etc/hosts` needs `127.0.0.1 local.app.com`. Backend dev API base is
+`https://local.app.com:8000` (root_path is stripped locally); production is
+`https://chores.dempseypalaciotascon.com/api`.
+
+## 6. Cross-cutting contracts
+
+**Auth flow**
+1. `POST /token` (form-encoded `username`/`password`) → sets `access_token` cookie.
+2. SPA never reads the token; it calls `GET /user` and gets JWT claims (`sub`, `first_name`,
+   `second_name`, `colour`, `role`, `iat`, `exp`).
+3. `get_current_user` re-validates that the email still exists in `UserDB` on every request.
+4. `POST /logout` clears the cookie; the frontend sets `user = undefined` and navigates to `/login`.
+
+**Timetable flow**
+1. `GET /timetable?week=YYYY-MM-DD` → `{ weekStart, timetable: [{id, day, time, assigned}] }`
+   (`assigned` is the user's **first name** or `null`).
+2. `convertDataToTimeTableType()` in the SPA pivots that flat list into
+   `{ Monday: { Morning: Day, Evening: Day }, ... }`.
+3. Editing a cell opens `EditPanel`, which sends `PATCH /timetable` and uses the response as the new
+   client state — no refetch needed.
+
+**Wire-format asymmetry to respect:** the API returns snake_case dicts for users/stats but
+`weekStart` camelCase, and signup accepts `surename` (sic) as the payload field name for surname.
+Do not "clean these up" in isolation; a rename is a breaking API + frontend change.
+
+## 7. Definition of done
+
+- [ ] Tests/checks pass (see rule 1) and no *new* lint errors were introduced.
+- [ ] New endpoints: implemented, permission-checked, covered by `BE/tests/`, and added to both
+      `README.md` and `BE/README.md` API tables.
+- [ ] New pages/routes: registered in `main.tsx`, guarded appropriately, listed in both READMEs.
+- [ ] New env var: added to `BE/app/config.py` **and** `.env.example` **and** the README tables.
+- [ ] No secrets, no debug `print`/`console.log` left behind.
+- [ ] If you changed a model, the "delete the SQLite file" consequence is called out in your summary.
+
+## 8. Where things go
+
+| You are adding... | Put it in |
+| --- | --- |
+| a route | `BE/app/main.py` (import helpers rather than inlining queries) |
+| a reusable DB/domain query | `BE/app/utils/database/db.py` |
+| email/scheduling logic | `BE/app/utils/notifications/resend.py` |
+| a settings/env knob | `BE/app/config.py` + `BE/.env.example` |
+| a page | `FE/chores/src/pages/*.tsx` + register in `main.tsx` |
+| a shared component | `FE/chores/src/components/*.tsx` (shadcn primitives stay in `components/ui/`) |
+| app-wide state | `FE/chores/src/context/*` (one context per concern) |
+| API↔UI type mapping | `FE/chores/src/utils/timetable.ts` / `src/types/` |

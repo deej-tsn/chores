@@ -55,7 +55,7 @@ export default function StatsPage() {
         }
 
         setData(formatChartData(resData));
-      } catch (err) {
+      } catch {
         setError("An error has occurred");
       } finally {
         setLoading(false);

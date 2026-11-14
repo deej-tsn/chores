@@ -20,4 +20,13 @@ export default defineConfig([
       globals: globals.browser,
     },
   },
+  {
+    // shadcn/ui primitives intentionally export their cva variants next to the
+    // component (e.g. `buttonVariants`). Keep generated files untouched instead
+    // of fighting the fast-refresh rule across the whole codebase.
+    files: ["src/components/ui/**/*.{ts,tsx}"],
+    rules: {
+      "react-refresh/only-export-components": "off",
+    },
+  },
 ]);

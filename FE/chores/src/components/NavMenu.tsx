@@ -1,13 +1,13 @@
 import { UserContext } from "@/context/UserContext";
 import { fetchURL } from "@/utils/fetch";
-import { useContext} from "react";
-import { useNavigate } from "react-router";
+import { useContext } from "react";
+import { useNavigate, type NavigateFunction } from "react-router";
 
 export default function NavMenu() {
     const navigate = useNavigate();
     const { setUser } = useContext(UserContext);
 
-    async function logout(navigate: any) {
+    async function logout(navigate: NavigateFunction) {
         try {
             const response = await fetch(fetchURL("/logout"), {
                 method: "POST",

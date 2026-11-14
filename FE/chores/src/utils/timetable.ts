@@ -69,17 +69,23 @@ export const DefaultTimeTable: TimeTableDict = {
   },
 };
 
-type DataTimeTable = {
+/** One row as returned by `GET /timetable` (date fields are ISO strings). */
+export type TimetableApiDay = {
   id: number;
   time: "Morning" | "Evening";
-  day: Date;
+  day: string;
   assigned: string | null;
 };
 
-export function convertDataToTimeTableType(data: {
+/** Payload of `GET /timetable` and `PATCH /timetable`. */
+export type TimetableResponse = {
   weekStart: string;
-  timetable: DataTimeTable[];
-}): TimetableData {
+  timetable: TimetableApiDay[];
+};
+
+export function convertDataToTimeTableType(
+  data: TimetableResponse,
+): TimetableData {
   const timetable: TimeTableDict = {};
 
   dayNames.forEach((weekDay) => {
@@ -102,7 +108,7 @@ export function convertDataToTimeTableType(data: {
 }
 
 export function getMonday() {
-  let d = new Date();
+  const d = new Date();
   const day = d.getDay(),
     diff = d.getDate() - day + (day == 0 ? -6 : 1);
   return new Date(d.setDate(diff));

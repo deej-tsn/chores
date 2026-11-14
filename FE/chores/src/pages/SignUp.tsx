@@ -36,9 +36,10 @@ export default function SignUp() {
 
   const password = watch("password", "");
 
+  // Re-validate the password match whenever the password field changes.
   useEffect(() => {
     trigger("confirm_password");
-  }, [password]);
+  }, [password, trigger]);
 
   async function submitSignUp(data: SignUpFormData) {
     const formData = new FormData();

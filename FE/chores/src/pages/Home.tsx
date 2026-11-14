@@ -1,4 +1,4 @@
-import { useContext, useEffect, useState } from "react";
+import { useCallback, useContext, useEffect, useState } from "react";
 import { UserContext } from "../context/UserContext";
 import {
   convertDataToTimeTableType,
@@ -8,6 +8,7 @@ import {
   formatDate,
   getMonday,
   type TimetableData,
+  type TimetableResponse,
 } from "../utils/timetable";
 import luka from "../assets/image.png";
 import EditPanel from "../components/EditPanel";
@@ -30,10 +31,11 @@ function Home() {
     weekStart: getMonday(),
     timetable: DefaultTimeTable,
   });
-  const current_date = new Date()
 
-
-  async function getTimetable(date?: Date) {
+  // Stable identity so the initial fetch can run exactly once on mount.
+  const getTimetable = useCallback(async (date?: Date) => {
+      // Computed per call (not per render) to keep this callback dependency-free.
+      const current_date = new Date()
       if(date && diffInDates(date, current_date) > 14){
         alert('Timetable does not exist for given future date')
         return
@@ -45,7 +47,7 @@ function Home() {
         credentials: "include",
       })
         .then((res) => res.json())
-        .then((data : {weekStart : string, timetable : any[]}) => {
+        .then((data: TimetableResponse) => {
           if(data.timetable.length == 0){
             setTimetable({weekStart: new Date(data.weekStart), timetable : {}})
           } else{
@@ -55,11 +57,11 @@ function Home() {
 
         })
         .catch((error) => console.log(error));
-  }
+  }, []);
 
   useEffect(() => {
     getTimetable();
-  }, []);
+  }, [getTimetable]);
 
 
   if (!user) return null;
