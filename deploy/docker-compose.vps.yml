@@ -11,6 +11,13 @@
 # RESEND_API_KEY. There is deliberately no ENVIRONMENT entry: app/config.py defaults it to "PROD".
 # Do not add ENVIRONMENT=DEV there — it would seed a test admin user and three weeks of rota rows.
 
+# The project name is NOT the directory name: the live container was created under project
+# `chores_api`. Without this, `docker compose` derives `docker-compose-scripts` from the directory and
+# tries to build a parallel stack that dies with
+#   Conflict. The container name "/chores_api" is already in use
+# scripts/release.sh also passes --project-name explicitly, for when this line has not been deployed.
+name: chores_api
+
 services:
   chores_api:
     # $CHORES_TAG is set by scripts/release.sh to `chores_api_v1-<git-sha>`, which makes a rollback a
