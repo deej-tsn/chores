@@ -65,8 +65,11 @@ timetable rows. **Guest Mode** logs in as `guest@example.com` / `guestpassword` 
 chores/
 ├── AGENTS.md                      # how AI agents (and new humans) should work in this repo
 ├── README.md                      # you are here
-├── docker-compose.yml             # backend container + SQLite volume mount
-├── .github/workflows/tests.yml    # CI: pytest on push/PR
+├── docker-compose.yml             # api container: SQLite volume, /healthz probe, TAG= pin
+├── scripts/release.sh             # one-command release: build → push → scp → redeploy → smoke test
+├── deploy/docker-compose.vps.yml  # THE production compose file (host: /root/docker-compose-scripts)
+├── .deploy.env.example            # host/path config for the release script (copy to .deploy.env)
+├── .github/workflows/tests.yml    # CI: pytest (backend) + lint/build (frontend) on push/PR
 │
 ├── BE/                            # Python 3.13 FastAPI service
 │   ├── AGENTS.md                  # backend-specific conventions
@@ -94,7 +97,7 @@ chores/
     ├── .env.example               # template for the two files below
     ├── .env.development           # VITE_API_BASE for local dev
     ├── .env.production            # VITE_API_BASE for prod
-    ├── Dockerfile, nginx.conf     # static build served by nginx (SPA fallback)
+    ├── Dockerfile, nginx.conf     # local/self-hosted image; production serves dist/ from host nginx
     └── src/
         ├── main.tsx               # providers + route table
         ├── pages/                 # DogChores (rota), HomeChores, Login, SignUp, Settings, Stats
@@ -220,6 +223,7 @@ All routes are mounted under the root path `/api`.
 | `GET` | `/chores/home?period=YYYY-MM-DD` | none | Home chores for the fortnight containing `period` (defaults to the current one) |
 | `PATCH` | `/chores/home` | `admin` \| `user` | Claim/leave one home chore for the caller |
 | `GET` | `/count` | admin | Dog shifts per person since `START_DATE` (`2025-12-08`) |
+| `GET` | `/healthz` | none | Readiness probe → `{"status": "ok"}`, or 503 if SQLite is unreadable |
 
 `PATCH /chores/dog-walking` body:
 
@@ -320,39 +324,125 @@ cd FE/chores && npm run lint  # passes
 
 ## Deployment
 
-**Backend** — `docker compose up --build` builds `BE/Dockerfile` (uv sync inside the image), exposes
-`:8000`, and mounts `./BE/data` → `/app/data` so SQLite survives restarts. Image: `deejtsn/private:chores_api_v1`.
+Production is **one VPS**, reached as `ssh do`. There is **no CD**: CI runs tests only, so every release
+is a manual action from your machine — but it is a single command, not five steps.
 
-**Frontend** — `FE/chores/Dockerfile` is a two-stage build (`npm run build` → nginx) with an
-`nginx.conf` that falls back to `index.html` for React Router paths. `VITE_API_BASE` is baked in at
-build time, so rebuild the image when the API URL changes.
+### Topology (as audited)
 
-**Environment.** The `api` service reads `BE/.env` via `env_file:`. `SECRET_KEY` and `RESEND_API_KEY`
-have no defaults in `app/config.py`, so if that file is missing or incomplete the container dies during
-startup with `pydantic_core._pydantic_core.ValidationError: 2 validation errors for Settings` and
-exit code 3 (Compose's `restart: always` then turns it into a crash loop). Start from
-`BE/.env.example`, and set `ENVIRONMENT=PROD` in production.
+| Piece | Where |
+| --- | --- |
+| Host | DigitalOcean droplet, `x86_64`, 1 vCPU / 1 GB, `ssh do` |
+| Production compose | `/root/docker-compose-scripts/docker-compose.yml` — tracked here as [`deploy/docker-compose.vps.yml`](./deploy/docker-compose.vps.yml) |
+| API container | `chores_api`, published on **`127.0.0.1:8082`** → container `:8000` |
+| SQLite | `/home/util/chores/data/database.db` → bind-mounted to `/app/data` |
+| Frontend | static build at `/home/util/chores/dist`, served by host nginx |
+| Reverse proxy | host nginx: `chores.dempseypalaciotascon.com` → `proxy_pass http://127.0.0.1:8082/` |
+| TLS | certbot systemd timers (`certbot.timer`, `snap.certbot.renew.timer`) |
 
-### Pre-deploy checklist
+The repo-root `docker-compose.yml` is **not** what runs in production — it uses service `api`, port
+`8000:8000`, a relative volume and `env_file:`. Production uses service `chores_api`, port `8082`, an
+absolute volume and inline `environment:`. Only `deploy/docker-compose.vps.yml` describes the server.
 
-Run in this order; each step assumes the previous one passed.
+**The proxy strips `/api` before forwarding.** The container serves bare paths — `/chores/home` is a
+200 in-container and `/api/chores/home` is a 404 — so the browser asks for `/api/chores/home` and
+FastAPI sees `/chores/home`. `/healthz` follows the same rule (publicly `/api/healthz`).
 
-1. **Green checks.** `cd BE && uv run pytest -v` (58 passed) · `cd FE/chores && npm run build && npm run lint`.
-   `uv run ruff check .` should stay at the 6-finding baseline — no new ones.
-2. **Merge via PR.** `.github/workflows/tests.yml` only runs on `pull_request` and `push: [main]`, so an
-   unmerged branch has **never been CI'd**. Check the PR is green before merging.
-3. **Host env.** `BE/.env` exists on the server with `SECRET_KEY`, `RESEND_API_KEY`, `ENVIRONMENT=PROD`.
-4. **Back up the volume.** `cp BE/data/database.db` somewhere safe. No migrations exist, but the 3
-   home-chore tables are purely additive (`create_all` makes them), so the restore path is "put the old
-   file back", never "delete the DB".
-5. **Deploy backend and frontend together.** The dog rota moved from `/timetable` to
-   `/chores/dog-walking` with **no alias**, so either order alone breaks the rota page until the other
-   half ships. Keep the window short or reintroduce a temporary alias on the old paths.
-6. **Smoke test unauthenticated:** `GET /api/chores/home` and `GET /api/chores/dog-walking` both return
-   JSON (200, not 404/500), then log in at `/login` and confirm a claim toggle round-trips.
-7. **Check the email jobs.** The daily 09:00 dog email is unchanged; the new Sunday 21:00 home-chores
-   job runs every Sunday but only sends when the coming Monday is a fortnight anchor. Verify
-   `get_email_list()` recipients before leaving it unattended — it sends real mail via Resend.
+The chores vhost is in an nginx *include*, not `/etc/nginx/nginx.conf`; `nginx -T` is how to find it.
+
+With 1 GB of RAM, never build images on the droplet — build and push from your machine.
+
+Never delete `/home/util/chores/data`: it holds every user, dog-rota assignment and home-chore claim.
+
+### One-command release
+
+```bash
+cp .deploy.env.example .deploy.env   # once: set HOST, WEB_ROOT, COMPOSE_DIR
+./scripts/release.sh                 # release the current commit
+```
+
+`scripts/release.sh` runs the whole sequence and stops at the first failure:
+
+1. **Preflight** — refuses to run without `WEB_ROOT`/`COMPOSE_DIR`, warns on a dirty tree or a
+   non-`main` branch, and on `main` refuses to ship a commit that isn't pushed (i.e. one CI has never
+   seen). Records the currently-running image ID for rollback.
+2. **Checks** — `uv run pytest` and `npm run lint && npm run build`. Skip with `--skip-checks`.
+3. **Build + push the API image** — `docker buildx build --platform linux/amd64`, tagged
+   `chores_api_v1-<git-sha>` (immutable) and `chores_api_v1` (moving pointer).
+4. **Build the frontend** — `VITE_API_BASE` is baked in at build **time** from `.env.production`.
+5. **Back up the live SQLite file** — `database.db.bak-<timestamp>` beside the original.
+6. **Publish the frontend** — `rsync dist/` to `WEB_ROOT` on the host.
+7. **Redeploy** — `CHORES_TAG=chores_api_v1-<sha> docker compose pull chores_api` then
+   `up -d --wait chores_api`, run from `/root/docker-compose-scripts`.
+8. **Smoke test** — polls `GET /api/chores/home` and `/api/chores/dog-walking` and fails the release if
+   either stops returning `periodStart` / `weekStart`.
+
+Useful flags: `--dry-run` prints every command and touches nothing, `--skip-checks` skips step 2.
+
+### Three silent failures it prevents
+
+These are the ways a *manual* deploy looks fine and isn't:
+
+| Failure | Why it bites | Guard |
+| --- | --- | --- |
+| Built for the wrong CPU | This Mac is **arm64**, the VPS is amd64. A plain `docker build` yields an image that dies with `exec format error` | `--platform linux/amd64` is hard-coded in the script |
+| `up -d` without `pull` | Compose keeps the **cached** image and "deploys" nothing | `docker compose pull` first, always |
+| Container crash-loops | `up -d` still exits **0**, so a dead release looks successful (this happened locally: missing `SECRET_KEY`) | `/healthz` probe + `--wait` + the smoke test |
+
+### Rolling back
+
+Every release pushes an immutable `<git-sha>` tag, so a rollback is a tag change, not a rebuild:
+
+```bash
+ssh do "cd /root/docker-compose-scripts && CHORES_TAG=chores_api_v1-<previous-sha> \
+  docker compose up -d --wait chores_api"
+```
+
+The release script prints the previous image ID. If a migration-free schema change is implicated, restore
+the `database.db.bak-<timestamp>` file that step 5 made — `SQLModel.metadata.create_all` only ever *adds*
+tables, so restoring an older file never leaves mystery columns behind.
+
+### Health endpoint
+
+`GET /healthz` (and `/api/healthz` behind the proxy) returns `{"status": "ok"}`, or **503** if the
+database can't be read. It needs no authentication and is what `docker-compose.yml`'s `healthcheck`
+polls; anything that boots but can't reach SQLite must not report healthy.
+
+### Environment on the host
+
+Two different mechanisms, do not confuse them:
+
+- **Production** (`deploy/docker-compose.vps.yml`) declares `environment:` inline and takes
+  `RESEND_API_KEY` / `SECRET_KEY` from `/root/docker-compose-scripts/.env` by substitution. That file
+  holds **only those two keys**; there is no `ENVIRONMENT` entry, and `app/config.py` defaults it to
+  `PROD`.
+- **Repo-root** (`docker-compose.yml`, local dev) uses `env_file: ./BE/.env`.
+
+Either way `SECRET_KEY` and `RESEND_API_KEY` have no defaults in `app/config.py`, so a missing value
+kills the container at startup:
+
+```
+pydantic_core._pydantic_core.ValidationError: 2 validation errors for Settings
+ERROR:    Application startup failed. Exiting.
+```
+
+Exit code 3, which the restart policy turns into a silent crash loop — this is exactly what happened
+locally before `env_file:` was wired up.
+
+On the VPS, **do not add `ENVIRONMENT=DEV`** to `/root/docker-compose-scripts/.env`: it would seed a test
+admin user and three weeks of rota rows into the live database. Production relies on the `PROD` default.
+
+Write entries as `KEY=value` with no spaces around the `=`. Compose tolerates `KEY = value`, but
+`docker run --env-file` rejects it (`variable 'KEY ' contains whitespaces`), which makes the file subtly
+non-portable.
+
+### Ship both halves together
+
+Steps 4 and 6/7 are two halves of one deploy. A route rename — e.g. `/timetable` →
+`/chores/dog-walking`, which shipped *without* an alias — leaves the rota page broken if only one half
+goes out. The script does them back to back; don't run them on separate days.
+
+Finally, both email jobs (daily 09:00 dogs, Sunday 21:00 home chores) run **inside** the API process and
+send real mail via Resend, so keep it at one worker/replica or they'll duplicate.
 
 ## Conventions
 

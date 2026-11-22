@@ -26,6 +26,10 @@ npm run preview
 > `localhost` produces a CORS `No 'Access-Control-Allow-Origin' header` error on `/token`. Fix the URL,
 > not the CORS list.
 
+`vite.config.ts` enables HTTPS **only if** `local_cert/local.app.com{,-key}.pem` exist. The folder is
+GitHub-ignored, so CI and fresh clones build over plain HTTP — don't make those reads unconditional
+again, it broke CI with `ENOENT` on the cert path.
+
 There is **no test runner**. `npm run build` (tsc + vite) is the gate and currently passes.
 
 **Lint baseline:** `npm run lint` is clean (the 6 errors previously documented here were fixed). A new

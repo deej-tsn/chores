@@ -64,6 +64,9 @@ FE/chores/src/utils/timetable.ts   dog-rota types, API→UI transform, Monday/we
 FE/chores/src/utils/homeChores.ts  home-chore types, fortnight anchoring, claimant counts
 FE/chores/src/utils/dates.ts       calendar-safe date helpers shared by both sections
 FE/chores/src/types/user.ts        User / Token / TokenData shapes
+deploy/docker-compose.vps.yml      THE production compose file (also at /root/docker-compose-scripts on the VPS)
+docker-compose.yml                 local/dev api container — never the production definition
+scripts/release.sh                 release: build+push image, rsync FE, redeploy, smoke test
 ```
 
 ## 4. Domain vocabulary
@@ -100,11 +103,20 @@ npm ci                                   # prefer ci over install for lockfile f
 npm run dev                              # vite dev server, https://local.app.com:5173
 npm run build                            # tsc -b && vite build  (passes)
 npm run lint                             # clean — a new error is yours
+
+# Release (from repo root; needs .deploy.env with HOST/WEB_ROOT/COMPOSE_DIR)
+./scripts/release.sh                     # build → push → rsync FE → compose pull/up --wait → smoke test
+./scripts/release.sh --dry-run           # print every command, touch nothing
 ```
 
 Local hostnames: `/etc/hosts` needs `127.0.0.1 local.app.com`. Backend dev API base is
 `https://local.app.com:8000` (root_path is stripped locally); production is
 `https://chores.dempseypalaciotascon.com/api`.
+
+> **Releases go through `scripts/release.sh` only.** Do not hand-run the steps it encapsulates. It
+> exists because three failures are silent otherwise: building arm64 on this Mac for an amd64 VPS,
+> running `docker compose up -d` without `pull` (keeps the cached image), and a crash-looping container
+> still exiting 0. It also pins `TAG=<git-sha>` so a release can actually be rolled back.
 
 > **Always use `https://local.app.com:5173`, never `https://localhost:5173`.** Both resolve, but the
 > backend's CORS allow-list and the `local_cert/` TLS certs are issued for `local.app.com` only. The

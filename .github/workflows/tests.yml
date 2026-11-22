@@ -6,7 +6,7 @@ on:
     branches: [main]
 
 jobs:
-  test:
+  backend:
     runs-on: ubuntu-latest
 
     steps:
@@ -16,7 +16,9 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"  # or whatever you're using
+          # Matches requires-python = ">=3.13" in BE/pyproject.toml. This used to say 3.11, which
+          # only worked because `uv sync` silently resolved its own 3.13.
+          python-version: "3.13"
 
       - name: Install uv
         working-directory: ./BE
@@ -29,3 +31,31 @@ jobs:
       - name: Run tests
         working-directory: ./BE
         run: uv run pytest tests -v
+
+  frontend:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: FE/chores/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ./FE/chores
+        run: npm ci
+
+      # `npm run build` is also the typecheck gate (tsc -b), so a broken bundle can no longer
+      # reach a release undetected.
+      - name: Lint
+        working-directory: ./FE/chores
+        run: npm run lint
+
+      - name: Build
+        working-directory: ./FE/chores
+        run: npm run build

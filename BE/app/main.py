@@ -6,6 +6,7 @@ from fastapi import Depends, FastAPI, Form, HTTPException, Query, Response
 from fastapi.security import OAuth2PasswordRequestForm
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from sqlalchemy import text
 from sqlmodel import Session, select, update
 
 from .utils.stats.stats import get_count_per_person_since_start
@@ -90,6 +91,21 @@ def on_startup():
             test_email=settings.test_user_email,
             test_password=settings.test_user_password
         )
+
+@app.get("/healthz")
+def healthz(session: SessionDep):
+    """Readiness probe for the Docker healthcheck and the release script.
+
+    Deliberately proves two things rather than just "the process is up": the app responds,
+    and the SQLite file on the mounted volume is actually readable. A container that boots
+    but cannot reach its database must report unhealthy, not healthy.
+    """
+    try:
+        session.exec(text("SELECT 1")).one()
+    except Exception:
+        raise HTTPException(status_code=503, detail="database unavailable")
+    return {"status": "ok"}
+
 
 @app.post("/token")
 async def login_for_access_token(response: Response, session: SessionDep, user : OAuth2PasswordRequestForm = Depends(), settings = Depends(get_settings_dep)):
