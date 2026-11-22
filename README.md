@@ -320,39 +320,85 @@ cd FE/chores && npm run lint  # passes
 
 ## Deployment
 
-**Backend** — `docker compose up --build` builds `BE/Dockerfile` (uv sync inside the image), exposes
-`:8000`, and mounts `./BE/data` → `/app/data` so SQLite survives restarts. Image: `deejtsn/private:chores_api_v1`.
+Production is **one VPS**, reached as `ssh do`. There is **no CD**: `tests.yml` runs tests only, so every
+release is a manual sequence from your machine. The backend ships as a Docker Hub image; the frontend
+ships as **static files copied onto the host** (not a container).
 
-**Frontend** — `FE/chores/Dockerfile` is a two-stage build (`npm run build` → nginx) with an
-`nginx.conf` that falls back to `index.html` for React Router paths. `VITE_API_BASE` is baked in at
-build time, so rebuild the image when the API URL changes.
+The `api` container mounts `./BE/data` → `/app/data`, so the SQLite file survives redeploys. Never delete
+that directory on the host: it holds every user, dog-rota assignment and home-chore claim.
 
-**Environment.** The `api` service reads `BE/.env` via `env_file:`. `SECRET_KEY` and `RESEND_API_KEY`
-have no defaults in `app/config.py`, so if that file is missing or incomplete the container dies during
-startup with `pydantic_core._pydantic_core.ValidationError: 2 validation errors for Settings` and
-exit code 3 (Compose's `restart: always` then turns it into a crash loop). Start from
-`BE/.env.example`, and set `ENVIRONMENT=PROD` in production.
+### Release steps
 
-### Pre-deploy checklist
+**1. Build the backend image — for `linux/amd64`.** The dev machine is **arm64** and the VPS is amd64, so
+a plain `docker build` produces an image the host cannot run (`exec format error` / no matching
+manifest). Use buildx with an explicit platform, and push in the same step:
 
-Run in this order; each step assumes the previous one passed.
+```bash
+cd BE
+docker buildx build --platform linux/amd64 \
+  -t deejtsn/private:chores_api_v1 --push .
+```
+
+⚠️ The tag is **fixed** (`chores_api_v1`), so each release overwrites the previous one — there is no
+per-release tag to roll back to. Record the outgoing image ID first if you want a way back
+(`docker image inspect --format '{{.Id}}' deejtsn/private:chores_api_v1`).
+
+**2. Build the frontend.** `cd FE/chores && npm run build`. `VITE_API_BASE` is baked in at build
+**time** from `.env.production` (`https://chores.dempseypalaciotascon.com/api`), so a wrong value there
+means a broken bundle even if the API is healthy — and changing that URL requires a rebuild, not a
+restart.
+
+**3. SSH to the host.** `ssh do`
+
+**4. Copy the static build up.** `scp -r FE/chores/dist/*` into the directory nginx serves. Only
+`dist/` goes up — never `BE/data/`.
+
+**5. Redeploy the API.** In the compose directory:
+
+```bash
+docker compose pull && docker compose up -d
+```
+
+`pull` is not optional: `up -d` on its own will happily keep running the **stale cached image**, which
+is the easiest way to "deploy" nothing at all.
+
+### Environment on the host
+
+The `api` service reads `BE/.env` via `env_file:` (path relative to the compose file). `SECRET_KEY` and
+`RESEND_API_KEY` have no defaults in `app/config.py`, so a missing or incomplete file kills the
+container during startup:
+
+```
+pydantic_core._pydantic_core.ValidationError: 2 validation errors for Settings
+ERROR:    Application startup failed. Exiting.
+```
+exit code 3, which `restart: always` turns into a silent crash loop (this is exactly what happens if the
+repo's `docker-compose.yml` is run without `BE/.env`). If the VPS keeps its **own copy** of the compose
+file, mirror the `env_file:` block into it — a repo-only change will not reach the server.
+
+On the host that file must contain `ENVIRONMENT=PROD`. Leaving `DEV` there seeds a test admin user and
+three weeks of timetable rows into the live database.
+
+### Deploying a change
+
+Each step assumes the previous one passed.
 
 1. **Green checks.** `cd BE && uv run pytest -v` (58 passed) · `cd FE/chores && npm run build && npm run lint`.
    `uv run ruff check .` should stay at the 6-finding baseline — no new ones.
-2. **Merge via PR.** `.github/workflows/tests.yml` only runs on `pull_request` and `push: [main]`, so an
-   unmerged branch has **never been CI'd**. Check the PR is green before merging.
-3. **Host env.** `BE/.env` exists on the server with `SECRET_KEY`, `RESEND_API_KEY`, `ENVIRONMENT=PROD`.
-4. **Back up the volume.** `cp BE/data/database.db` somewhere safe. No migrations exist, but the 3
-   home-chore tables are purely additive (`create_all` makes them), so the restore path is "put the old
-   file back", never "delete the DB".
-5. **Deploy backend and frontend together.** The dog rota moved from `/timetable` to
-   `/chores/dog-walking` with **no alias**, so either order alone breaks the rota page until the other
-   half ships. Keep the window short or reintroduce a temporary alias on the old paths.
-6. **Smoke test unauthenticated:** `GET /api/chores/home` and `GET /api/chores/dog-walking` both return
-   JSON (200, not 404/500), then log in at `/login` and confirm a claim toggle round-trips.
-7. **Check the email jobs.** The daily 09:00 dog email is unchanged; the new Sunday 21:00 home-chores
-   job runs every Sunday but only sends when the coming Monday is a fortnight anchor. Verify
-   `get_email_list()` recipients before leaving it unattended — it sends real mail via Resend.
+2. **Merge via PR.** `tests.yml` only runs on `pull_request` and `push: [main]`, so an unmerged branch has
+   **never been CI'd**. Confirm the PR is green before merging.
+3. **Back up the database.** On the host, copy `BE/data/database.db` somewhere safe before the compose
+   step. No migrations exist — but remember `create_all` only ever *adds* tables, so the restore path is
+   "put the old file back", never "delete the DB".
+4. **Ship backend and frontend in the same sitting.** Release step 4 (copy `dist/`) and release step 5
+   (compose redeploy) are two halves of one deploy: a route rename — e.g. `/timetable` →
+   `/chores/dog-walking`, which shipped *without* an alias — leaves the rota page broken in either order.
+   The window is short, so do them back to back rather than across two days.
+5. **Smoke test:** `GET /api/chores/home` and `GET /api/chores/dog-walking` both return JSON
+   (200, not 404/500) while unauthenticated, then log in and confirm a claim toggle round-trips.
+6. **Mind the email jobs.** The daily 09:00 dog email and the Sunday 21:00 home-chores email both run
+   inside the API process and send **real mail** via Resend; the Sunday job no-ops unless the coming
+   Monday starts a fortnight. Multiple workers/replicas would duplicate sends — keep it at one.
 
 ## Conventions
 
