@@ -3,7 +3,9 @@ services:
     build:
       context: ./BE
       dockerfile: ./Dockerfile
-    image: deejtsn/private:chores_api_v1
+    # TAG lets a host pin an immutable release tag (scripts/release.sh pushes `<sha>` and `latest`),
+    # so a rollback is `TAG=<sha> docker compose up -d --wait` instead of rebuilding an old commit.
+    image: deejtsn/private:chores_api_v1:${TAG:-latest}
     volumes:
       - ./BE/data:/app/data            # Mount host folder for persistence
     # Required: SECRET_KEY and RESEND_API_KEY have no defaults, so without this file the
@@ -16,7 +18,15 @@ services:
       - ./BE/.env
     environment:
       DB_PATH: "/app/data/database.db"
-    platform: linux/amd64  
+    platform: linux/amd64
     ports:
       - "8000:8000"
     restart: always
+    # Hits /healthz, which also proves SQLite is readable. Without this, `up -d` returns 0 while
+    # the container crash-loops, and a broken release looks like a successful one.
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 40s

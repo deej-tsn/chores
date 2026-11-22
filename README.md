@@ -65,8 +65,10 @@ timetable rows. **Guest Mode** logs in as `guest@example.com` / `guestpassword` 
 chores/
 ├── AGENTS.md                      # how AI agents (and new humans) should work in this repo
 ├── README.md                      # you are here
-├── docker-compose.yml             # backend container + SQLite volume mount
-├── .github/workflows/tests.yml    # CI: pytest on push/PR
+├── docker-compose.yml             # api container: SQLite volume, /healthz probe, TAG= pin
+├── scripts/release.sh             # one-command release: build → push → scp → redeploy → smoke test
+├── .deploy.env.example            # host/path config for the release script (copy to .deploy.env)
+├── .github/workflows/tests.yml    # CI: pytest (backend) + lint/build (frontend) on push/PR
 │
 ├── BE/                            # Python 3.13 FastAPI service
 │   ├── AGENTS.md                  # backend-specific conventions
@@ -220,6 +222,7 @@ All routes are mounted under the root path `/api`.
 | `GET` | `/chores/home?period=YYYY-MM-DD` | none | Home chores for the fortnight containing `period` (defaults to the current one) |
 | `PATCH` | `/chores/home` | `admin` \| `user` | Claim/leave one home chore for the caller |
 | `GET` | `/count` | admin | Dog shifts per person since `START_DATE` (`2025-12-08`) |
+| `GET` | `/healthz` | none | Readiness probe → `{"status": "ok"}`, or 503 if SQLite is unreadable |
 
 `PATCH /chores/dog-walking` body:
 
@@ -320,85 +323,88 @@ cd FE/chores && npm run lint  # passes
 
 ## Deployment
 
-Production is **one VPS**, reached as `ssh do`. There is **no CD**: `tests.yml` runs tests only, so every
-release is a manual sequence from your machine. The backend ships as a Docker Hub image; the frontend
-ships as **static files copied onto the host** (not a container).
+Production is **one VPS**, reached as `ssh do`. There is **no CD**: CI runs tests only, so every release
+is a manual action from your machine — but it is a single command, not five steps.
 
-The `api` container mounts `./BE/data` → `/app/data`, so the SQLite file survives redeploys. Never delete
-that directory on the host: it holds every user, dog-rota assignment and home-chore claim.
+The `api` container bind-mounts `./BE/data` → `/app/data`, so the SQLite file survives redeploys. Never
+delete that directory on the host: it holds every user, dog-rota assignment and home-chore claim.
 
-### Release steps
-
-**1. Build the backend image — for `linux/amd64`.** The dev machine is **arm64** and the VPS is amd64, so
-a plain `docker build` produces an image the host cannot run (`exec format error` / no matching
-manifest). Use buildx with an explicit platform, and push in the same step:
+### One-command release
 
 ```bash
-cd BE
-docker buildx build --platform linux/amd64 \
-  -t deejtsn/private:chores_api_v1 --push .
+cp .deploy.env.example .deploy.env   # once: set HOST, WEB_ROOT, COMPOSE_DIR
+./scripts/release.sh                 # release the current commit
 ```
 
-⚠️ The tag is **fixed** (`chores_api_v1`), so each release overwrites the previous one — there is no
-per-release tag to roll back to. Record the outgoing image ID first if you want a way back
-(`docker image inspect --format '{{.Id}}' deejtsn/private:chores_api_v1`).
+`scripts/release.sh` runs the whole sequence and stops at the first failure:
 
-**2. Build the frontend.** `cd FE/chores && npm run build`. `VITE_API_BASE` is baked in at build
-**time** from `.env.production` (`https://chores.dempseypalaciotascon.com/api`), so a wrong value there
-means a broken bundle even if the API is healthy — and changing that URL requires a rebuild, not a
-restart.
+1. **Preflight** — refuses to run without `WEB_ROOT`/`COMPOSE_DIR`, warns on a dirty tree or a
+   non-`main` branch, and on `main` refuses to ship a commit that isn't pushed (i.e. one CI has never
+   seen). Records the currently-running image ID for rollback.
+2. **Checks** — `uv run pytest` and `npm run lint && npm run build`. Skip with `--skip-checks`.
+3. **Build + push the API image** — `docker buildx build --platform linux/amd64`, tagged both
+   `<git-sha>` and `latest`.
+4. **Build the frontend** — `VITE_API_BASE` is baked in at build **time** from `.env.production`.
+5. **Back up the live SQLite file** — `database.db.bak-<timestamp>` beside the original.
+6. **Publish the frontend** — `rsync dist/` to `WEB_ROOT` on the host.
+7. **Redeploy** — `TAG=<sha> docker compose pull api && docker compose up -d --wait api`.
+8. **Smoke test** — polls `GET /api/chores/home` and `/api/chores/dog-walking` and fails the release if
+   either stops returning `periodStart` / `weekStart`.
 
-**3. SSH to the host.** `ssh do`
+Useful flags: `--dry-run` prints every command and touches nothing, `--skip-checks` skips step 2.
 
-**4. Copy the static build up.** `scp -r FE/chores/dist/*` into the directory nginx serves. Only
-`dist/` goes up — never `BE/data/`.
+### Three silent failures it prevents
 
-**5. Redeploy the API.** In the compose directory:
+These are the ways a *manual* deploy looks fine and isn't:
+
+| Failure | Why it bites | Guard |
+| --- | --- | --- |
+| Built for the wrong CPU | This Mac is **arm64**, the VPS is amd64. A plain `docker build` yields an image that dies with `exec format error` | `--platform linux/amd64` is hard-coded in the script |
+| `up -d` without `pull` | Compose keeps the **cached** image and "deploys" nothing | `docker compose pull` first, always |
+| Container crash-loops | `up -d` still exits **0**, so a dead release looks successful (this happened locally: missing `SECRET_KEY`) | `/healthz` probe + `--wait` + the smoke test |
+
+### Rolling back
+
+Every release pushes an immutable `<git-sha>` tag, so a rollback is a tag change, not a rebuild:
 
 ```bash
-docker compose pull && docker compose up -d
+ssh do "cd <COMPOSE_DIR> && TAG=<previous-sha> docker compose up -d --wait api"
 ```
 
-`pull` is not optional: `up -d` on its own will happily keep running the **stale cached image**, which
-is the easiest way to "deploy" nothing at all.
+The release script prints the previous image ID. If a migration-free schema change is implicated, restore
+the `database.db.bak-<timestamp>` file that step 5 made — `SQLModel.metadata.create_all` only ever *adds*
+tables, so restoring an older file never leaves mystery columns behind.
+
+### Health endpoint
+
+`GET /healthz` (and `/api/healthz` behind the proxy) returns `{"status": "ok"}`, or **503** if the
+database can't be read. It needs no authentication and is what `docker-compose.yml`'s `healthcheck`
+polls; anything that boots but can't reach SQLite must not report healthy.
 
 ### Environment on the host
 
 The `api` service reads `BE/.env` via `env_file:` (path relative to the compose file). `SECRET_KEY` and
-`RESEND_API_KEY` have no defaults in `app/config.py`, so a missing or incomplete file kills the
-container during startup:
+`RESEND_API_KEY` have no defaults in `app/config.py`, so a missing file kills the container at startup:
 
 ```
 pydantic_core._pydantic_core.ValidationError: 2 validation errors for Settings
 ERROR:    Application startup failed. Exiting.
 ```
-exit code 3, which `restart: always` turns into a silent crash loop (this is exactly what happens if the
-repo's `docker-compose.yml` is run without `BE/.env`). If the VPS keeps its **own copy** of the compose
-file, mirror the `env_file:` block into it — a repo-only change will not reach the server.
 
-On the host that file must contain `ENVIRONMENT=PROD`. Leaving `DEV` there seeds a test admin user and
-three weeks of timetable rows into the live database.
+Exit code 3, which `restart: always` turns into a silent crash loop. If the VPS keeps its **own copy** of
+the compose file, mirror the `env_file:` block into it — a repo-only change never reaches the server.
 
-### Deploying a change
+That file must contain `ENVIRONMENT=PROD`. Leaving `DEV` there seeds a test admin user and three weeks of
+timetable rows into the live database.
 
-Each step assumes the previous one passed.
+### Ship both halves together
 
-1. **Green checks.** `cd BE && uv run pytest -v` (58 passed) · `cd FE/chores && npm run build && npm run lint`.
-   `uv run ruff check .` should stay at the 6-finding baseline — no new ones.
-2. **Merge via PR.** `tests.yml` only runs on `pull_request` and `push: [main]`, so an unmerged branch has
-   **never been CI'd**. Confirm the PR is green before merging.
-3. **Back up the database.** On the host, copy `BE/data/database.db` somewhere safe before the compose
-   step. No migrations exist — but remember `create_all` only ever *adds* tables, so the restore path is
-   "put the old file back", never "delete the DB".
-4. **Ship backend and frontend in the same sitting.** Release step 4 (copy `dist/`) and release step 5
-   (compose redeploy) are two halves of one deploy: a route rename — e.g. `/timetable` →
-   `/chores/dog-walking`, which shipped *without* an alias — leaves the rota page broken in either order.
-   The window is short, so do them back to back rather than across two days.
-5. **Smoke test:** `GET /api/chores/home` and `GET /api/chores/dog-walking` both return JSON
-   (200, not 404/500) while unauthenticated, then log in and confirm a claim toggle round-trips.
-6. **Mind the email jobs.** The daily 09:00 dog email and the Sunday 21:00 home-chores email both run
-   inside the API process and send **real mail** via Resend; the Sunday job no-ops unless the coming
-   Monday starts a fortnight. Multiple workers/replicas would duplicate sends — keep it at one.
+Steps 4 and 6/7 are two halves of one deploy. A route rename — e.g. `/timetable` →
+`/chores/dog-walking`, which shipped *without* an alias — leaves the rota page broken if only one half
+goes out. The script does them back to back; don't run them on separate days.
+
+Finally, both email jobs (daily 09:00 dogs, Sunday 21:00 home chores) run **inside** the API process and
+send real mail via Resend, so keep it at one worker/replica or they'll duplicate.
 
 ## Conventions
 

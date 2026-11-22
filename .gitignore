@@ -1,2 +1,5 @@
 .DS_Store
 *\local_cert
+
+# Local release config for scripts/release.sh (paths + ssh alias, never secrets)
+.deploy.env
