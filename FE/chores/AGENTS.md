@@ -20,13 +20,16 @@ npm run build    # tsc -b && vite build  ← also the typecheck gate
 npm run preview
 ```
 
+> **Open `https://local.app.com:5173`, never `https://localhost:5173`.** `vite.config.ts` binds
+> `0.0.0.0:5173` so both hosts serve the app, but the TLS certs are issued for `local.app.com` and the
+> backend CORS allow-list (`BE/app/main.py`) contains only `https://local.app.com:5173`. Using
+> `localhost` produces a CORS `No 'Access-Control-Allow-Origin' header` error on `/token`. Fix the URL,
+> not the CORS list.
+
 There is **no test runner**. `npm run build` (tsc + vite) is the gate and currently passes.
 
-**Lint baseline:** `npm run lint` already exits non-zero with 6 errors / 2 warnings —
-`no-explicit-any` in `pages/Home.tsx:48` and `utils/utils.ts:1`, unused `err` in `pages/Stats.tsx:58`,
-`prefer-const` in `utils/timetable.ts:105`, plus `exhaustive-deps` warnings in `Home.tsx` and
-`SignUp.tsx`. Treat that as the starting state: do not introduce *new* violations, and do not bury a
-lint clean-up inside an unrelated feature diff.
+**Lint baseline:** `npm run lint` is clean (the 6 errors previously documented here were fixed). A new
+error or warning is yours — fix it in the change that introduces it.
 
 ## Layout rules
 
@@ -49,13 +52,17 @@ lint clean-up inside an unrelated feature diff.
 - Auth state lives in `UserContext`: `{ user, setUser, token, setToken }`. `token` is a **boolean
   toggle**, not a JWT — flipping it re-runs the `useEffect` that fetches `GET /user`. To re-fetch the
   current user, toggle it (`setToken(!token)`); to log out, `setUser(undefined)`.
-- Timetable data shape: the API returns a flat list; `convertDataToTimeTableType()` pivots it into
+- Dog rota shape: the API returns a flat list; `convertDataToTimeTableType()` pivots it into
   `TimeTableDict` keyed by **full weekday names** (`Monday`…`Sunday`, Sunday-first indexing handled
-  inside). Mutations (`PATCH /timetable`) return the full refreshed timetable — reuse that response
-  instead of refetching.
-- Date/week math lives in `src/utils/timetable.ts` (`getMonday`, `formatDate`, `diffInDates`,
-  `daysOfWeek`). Use millisecond arithmetic (`ONE_WEEK_MS` in `Home.tsx`), not `setDate()`, to avoid
-  DST bugs.
+  inside). Mutations (`PATCH /chores/dog-walking`) return the full refreshed timetable — reuse that
+  response instead of refetching.
+- Home chores shape: a flat list per fortnight, `{ id, chore, description, claimed_by, claimed_by_me }`.
+  `PATCH /chores/home` takes an explicit `claimed` boolean and returns the refreshed period. Never infer
+  "mine" by comparing first names — use `claimed_by_me`.
+- Date math: week math lives in `src/utils/timetable.ts` (`getMonday`, `formatDate`, `diffInDates`,
+  `daysOfWeek`); fortnight anchoring in `src/utils/homeChores.ts`; and the calendar-safe helpers
+  (`parseISODate`, `formatISODate`, `addDays`) in `src/utils/dates.ts`. Use those — `new
+  Date("YYYY-MM-DD")` is UTC and `toISOString()` can slip a day near midnight.
 
 ## Authorization in the UI
 
@@ -67,8 +74,8 @@ their own page frame. Role-dependent affordances follow the existing pattern:
 const isAuthorized = ["admin", "user"].includes(user?.role ?? "");
 ```
 
-Roles: `guest`, `read-only-user` (signup default), `user`, `admin`. `guest`/`read-only-user` see the
-timetable but no edit affordances; only admins see the Stats nav link.
+Roles: `guest`, `read-only-user` (signup default), `user`, `admin`. `guest`/`read-only-user` see both
+chore sections read-only; only admins see the Stats nav link.
 
 ## Styling
 
@@ -88,13 +95,15 @@ timetable but no edit affordances; only admins see the Stats nav link.
 - `VITE_*` vars are inlined at **build** time; changing `.env.production` requires rebuilding the
   Docker image, not just restarting.
 - `react-hooks` lint rules are `recommended-latest`: `useEffect` dependency arrays must be honest.
-  `Home.tsx` intentionally runs its fetch once with `[]`; if you extract that fetch into a
-  component/util, keep the behaviour identical.
+  `DogChores.tsx` and `HomeChores.tsx` intentionally run their fetch once via a stable `useCallback`
+  with `[]`; if you extract that fetch into a component/util, keep the behaviour identical.
 - Unused scaffolding that is safe to delete but currently compiles: `components/Snackbar.tsx`,
   `context/SnackbarContext.ts` (it exports a second `EditPanelProvider` that must not be mounted),
   and `pages/Settings.tsx` (stub).
-- `EditPanel` is only rendered for `admin`/`user` roles from `Home.tsx`; the cell click also re-checks
-  the role. Keep both checks if you refactor.
-- `react-hooks` `exhaustive-deps` warnings in `Home.tsx`/`SignUp.tsx` are pre-existing; fixing them
-  means restructuring the fetch/trigger effects, so do it deliberately and verify the page still loads
-  data rather than blindly adding dependencies.
+- `EditPanel` is only rendered for `admin`/`user` roles from `DogChores.tsx`; the cell click also
+  re-checks the role. Keep both checks if you refactor. Home chores deliberately have no modal: the
+  card's Join/Leave button is the whole interaction.
+- `NavLink` matches a route exactly or with a trailing slash — not a bare `startsWith` — so one section
+  cannot appear active on a sibling route. Keep that if you add routes.
+- `exhaustive-deps` warnings in `SignUp.tsx` are the remaining known ones; fixing them means
+  restructuring the trigger effect, so do it deliberately rather than blindly adding dependencies.

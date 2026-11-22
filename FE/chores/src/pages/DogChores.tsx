@@ -2,6 +2,7 @@ import { useCallback, useContext, useEffect, useState } from "react";
 import { UserContext } from "../context/UserContext";
 import {
   convertDataToTimeTableType,
+  countAssignees,
   daysOfWeek,
   DefaultTimeTable,
   diffInDates,
@@ -18,13 +19,11 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft, ArrowRight, Info } from "lucide-react";
 
 import { isEmpty } from "@/utils/utils";
+import { addDays } from "@/utils/dates";
 import MergedDayCell from "@/components/MergedDayCell";
 import SummaryBox from "@/components/Summary";
 
-// 1 week in milliseconds - using milliseconds instead of setDate() to avoid DST issues
-const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
-
-function Home() {
+function DogChores() {
   const { user } = useContext(UserContext);
   const [showSummaryBox, setSummaryBoxState] = useState<boolean>(false)
   const [timetableData, setTimetable] = useState<TimetableData>({
@@ -41,7 +40,7 @@ function Home() {
         return
       }
       const params = date ? `?week=${formatDate(date)}` : "";
-      const url = fetchURL(`/timetable${params}`);
+      const url = fetchURL(`/chores/dog-walking${params}`);
       fetch(url, {
         method: "GET",
         credentials: "include",
@@ -86,7 +85,7 @@ function Home() {
               Hello, {user.first_name}!
             </h1>
             <p className="text-[#6A5F5D] text-md md:text-lg">
-              Here's your timetable for the week. Keep those pups happy!
+              Here's the dog walking rota for the week. Keep those pups happy!
             </p>
           </div>
         </div>
@@ -100,8 +99,7 @@ function Home() {
                   variant="ghost"
                   className="rounded-full p-2 hover:bg-[#E8D6C5] transition"
                   onClick={() => {
-                    const prevWeek = new Date(timetableData.weekStart.getTime() - ONE_WEEK_MS);
-                    getTimetable(prevWeek);
+                    getTimetable(addDays(timetableData.weekStart, -7));
                   }}
                 >
                   <ArrowLeft className="w-5 h-5" />
@@ -115,8 +113,7 @@ function Home() {
                   variant="ghost"
                   className="rounded-full p-2 hover:bg-[#E8D6C5] transition"
                   onClick={() => {
-                    const nextWeek = new Date(timetableData.weekStart.getTime() + ONE_WEEK_MS);
-                    getTimetable(nextWeek);
+                    getTimetable(addDays(timetableData.weekStart, 7));
                   }}
                 >
                   <ArrowRight className="w-5 h-5" />
@@ -139,7 +136,7 @@ function Home() {
               >
                 <Info className="w-5 h-5" />
                 {showSummaryBox && (
-                  <SummaryBox timetable={timetableData.timetable} />
+                  <SummaryBox counts={countAssignees(timetableData.timetable)} />
                 )}
               </div>
             </div>
@@ -166,4 +163,4 @@ function Home() {
   );
 }
 
-export default Home;
+export default DogChores;

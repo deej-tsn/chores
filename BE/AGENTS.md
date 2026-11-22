@@ -39,16 +39,21 @@ def read_admin_thing(session: SessionDep, _: UserDB = Depends(require_admin)):
 ```
 
 Role checks for the *current actor* are done against the DB (see `require_admin`), not the JWT claim,
-because roles can change without the token being reissued. `PATCH /timetable` additionally restricts
-assignment to `role in {"admin", "user"}` and returns **401** (not 403) for forbidden roles — the
-existing tests assert that, so keep it consistent unless you update the tests intentionally.
+because roles can change without the token being reissued. Both `PATCH /chores/dog-walking` and
+`PATCH /chores/home` additionally restrict writes to `role in {"admin", "user"}` and return **401**
+(not 403) for forbidden roles — the existing tests assert that, so keep it consistent unless you
+update the tests intentionally.
 
 Response models — return Pydantic/SQLModel types (`TimetableData`, `TimetablePublic`, `User`), not raw
 dicts. `session.refresh()` after `add`/`commit` when the created row is returned.
 
-Date handling — all week logic goes through `get_last_monday()` / `week_dependency()`. Never compute
-"start of week" inline; a DST/`setDate` bug already happened once (see `hotfix/fix-dst-issue` and the
-`ONE_WEEK_MS` constant in `Home.tsx`).
+Date handling — all week logic goes through `get_last_monday()` / `week_dependency()`, and all
+fortnight logic through `get_fortnight_start()` / `fortnight_dependency()`. Never compute "start of
+week/period" inline; a DST/`setDate` bug already happened once (see `hotfix/fix-dst-issue`).
+
+> ⚠️ Never reuse `week_dependency()` for home chores — snapping to a Monday first would make every
+> week a new fortnight. `FORTNIGHT_ANCHOR` (2025-12-08) is a permanent constant; changing it re-keys
+> every period and orphans existing claims.
 
 Errors — `HTTPException(status_code=..., detail="...")`. Existing status conventions:
 400 wrong credentials / duplicate email, 401 unauthenticated or bad role, 403 admin-only,
@@ -56,17 +61,22 @@ Errors — `HTTPException(status_code=..., detail="...")`. Existing status conve
 
 ## Testing
 
-- `tests/conftest.py` provides `session` (in-memory SQLite with one seeded week, `StaticPool`) and
-  `client` (dependency overrides for `get_session` and `get_settings_dep`, `base_url="https://testserver"`).
+- `tests/conftest.py` provides `session` (in-memory SQLite with one seeded week plus the home-chores
+  catalogue and current fortnight, `StaticPool`) and `client` (dependency overrides for `get_session`
+  and `get_settings_dep`, `base_url="https://testserver"`).
+- Seeding helpers called from a request must take the caller's session. `add_weeks_dates()` opens its
+  own `Session(engine)` — the real database — and only avoids breaking tests because `conftest`
+  pre-seeds a week. `add_period_assignments(session, …)` deliberately takes the session.
 - Add permission-matrix cases to `tests/test_auth.py` (`@pytest.mark.parametrize("role", TEST_ROLES)`)
   and behaviour cases to a new `test_<area>.py`.
 - `tests/test_ready.py` patches names on `app.main` (`create_db_and_tables`, `start_notifications_scheduler`,
-  `create_guest_user`, `add_weeks_dates`, `create_test_user`, `get_settings`). If you rename or move
-  startup hooks, update those patch targets or the tests will silently stop asserting anything.
+  `create_guest_user`, `create_home_chores`, `seed_current_home_chore_period`, `add_weeks_dates`,
+  `create_test_user`, `get_settings`). If you rename or move startup hooks, update those patch targets
+  or the tests will silently stop asserting anything.
 - Never let tests reach `data/database.db`, the network, or Resend. Mock `resend.Emails.send`.
 
 ```bash
-uv run pytest -v            # whole suite — currently 26 passed
+uv run pytest -v            # whole suite — currently 58 passed
 uv run pytest tests/test_auth.py -v
 make test                   # same, via Makefile
 ```

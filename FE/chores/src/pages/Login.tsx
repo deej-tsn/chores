@@ -62,7 +62,7 @@ export default function Login() {
 
 
   if (user) {
-    return <Navigate to="/home" replace />;
+    return <Navigate to="/chores/dog-walking" replace />;
   }
 
 

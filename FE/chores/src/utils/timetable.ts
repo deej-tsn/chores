@@ -69,7 +69,7 @@ export const DefaultTimeTable: TimeTableDict = {
   },
 };
 
-/** One row as returned by `GET /timetable` (date fields are ISO strings). */
+/** One row as returned by `GET /chores/dog-walking` (date fields are ISO strings). */
 export type TimetableApiDay = {
   id: number;
   time: "Morning" | "Evening";
@@ -77,7 +77,7 @@ export type TimetableApiDay = {
   assigned: string | null;
 };
 
-/** Payload of `GET /timetable` and `PATCH /timetable`. */
+/** Payload of `GET /chores/dog-walking` and `PATCH /chores/dog-walking`. */
 export type TimetableResponse = {
   weekStart: string;
   timetable: TimetableApiDay[];
@@ -105,6 +105,22 @@ export function convertDataToTimeTableType(
 
   const weekStart = new Date(data.weekStart);
   return { weekStart: weekStart, timetable: timetable };
+}
+
+/** Per-person slot counts for the summary popover; empty slots count as unassigned. */
+export function countAssignees(
+  timetable: TimeTableDict,
+): Record<string, number> {
+  return Object.values(timetable).reduce<Record<string, number>>(
+    (counts, day) => {
+      [day.Morning, day.Evening].forEach((shift) => {
+        const name = shift.assignee ?? "Unassigned";
+        counts[name] = (counts[name] ?? 0) + 1;
+      });
+      return counts;
+    },
+    {},
+  );
 }
 
 export function getMonday() {
