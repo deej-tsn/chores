@@ -3,9 +3,11 @@ services:
     build:
       context: ./BE
       dockerfile: ./Dockerfile
-    # TAG lets a host pin an immutable release tag (scripts/release.sh pushes `<sha>` and `latest`),
-    # so a rollback is `TAG=<sha> docker compose up -d --wait` instead of rebuilding an old commit.
-    image: deejtsn/private:chores_api_v1:${TAG:-latest}
+    # Local/dev variant of deploy/docker-compose.vps.yml (that file is what runs in production).
+    # CHORES_TAG pins an immutable release so a rollback needs no rebuild. The tag comes AFTER the
+    # repository: `deejtsn/private:chores_api_v1-<sha>`. Appending a second colon is an invalid
+    # reference that `docker compose config` happily accepts — do not reintroduce it.
+    image: deejtsn/private:${CHORES_TAG:-chores_api_v1}
     volumes:
       - ./BE/data:/app/data            # Mount host folder for persistence
     # Required: SECRET_KEY and RESEND_API_KEY have no defaults, so without this file the

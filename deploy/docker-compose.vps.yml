@@ -1,0 +1,47 @@
+# THE PRODUCTION COMPOSE FILE.
+#
+# This is a copy of /root/docker-compose-scripts/docker-compose.yml on the VPS (`ssh do`). It is NOT
+# the repo-root docker-compose.yml — that one is the local/dev variant and has a different service
+# name, ports, volume paths and env handling. Keeping the production file here means a divergence is
+# a diff instead of a surprise; copy it up by hand when it changes.
+#
+#   scp deploy/docker-compose.vps.yml do:/root/docker-compose-scripts/docker-compose.yml
+#
+# Secrets come from /root/docker-compose-scripts/.env, which holds exactly SECRET_KEY and
+# RESEND_API_KEY. There is deliberately no ENVIRONMENT entry: app/config.py defaults it to "PROD".
+# Do not add ENVIRONMENT=DEV there — it would seed a test admin user and three weeks of rota rows.
+
+services:
+  chores_api:
+    # $CHORES_TAG is set by scripts/release.sh to `chores_api_v1-<git-sha>`, which makes a rollback a
+    # tag change. It defaults to the mutable `chores_api_v1` pointer, so a plain
+    # `docker compose up -d` still works without exporting anything.
+    #
+    # NOTE: the repository name and the tag are separate. `deejtsn/private:chores_api_v1:<sha>` is an
+    # INVALID reference (two colons); `docker compose config` accepts it and the daemon rejects it at
+    # deploy time. Always append to the tag, never after it.
+    image: deejtsn/private:${CHORES_TAG:-chores_api_v1}
+    container_name: chores_api
+    platform: linux/amd64
+
+    ports:
+      - "8082:8000"                    # host nginx proxies /api/ here (see the chores vhost)
+
+    volumes:
+      - /home/util/chores/data:/app/data
+
+    environment:
+      DB_PATH: /app/data/database.db
+      RESEND_API_KEY: ${RESEND_API_KEY}
+      SECRET_KEY: ${SECRET_KEY}
+
+    restart: unless-stopped
+
+    # Without this, `docker compose up -d --wait` has nothing to wait for and a crash-looping
+    # container still reports success. /healthz also proves SQLite on the mounted volume is readable.
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 40s

@@ -67,6 +67,7 @@ chores/
 ├── README.md                      # you are here
 ├── docker-compose.yml             # api container: SQLite volume, /healthz probe, TAG= pin
 ├── scripts/release.sh             # one-command release: build → push → scp → redeploy → smoke test
+├── deploy/docker-compose.vps.yml  # THE production compose file (host: /root/docker-compose-scripts)
 ├── .deploy.env.example            # host/path config for the release script (copy to .deploy.env)
 ├── .github/workflows/tests.yml    # CI: pytest (backend) + lint/build (frontend) on push/PR
 │
@@ -96,7 +97,7 @@ chores/
     ├── .env.example               # template for the two files below
     ├── .env.development           # VITE_API_BASE for local dev
     ├── .env.production            # VITE_API_BASE for prod
-    ├── Dockerfile, nginx.conf     # static build served by nginx (SPA fallback)
+    ├── Dockerfile, nginx.conf     # local/self-hosted image; production serves dist/ from host nginx
     └── src/
         ├── main.tsx               # providers + route table
         ├── pages/                 # DogChores (rota), HomeChores, Login, SignUp, Settings, Stats
@@ -326,8 +327,28 @@ cd FE/chores && npm run lint  # passes
 Production is **one VPS**, reached as `ssh do`. There is **no CD**: CI runs tests only, so every release
 is a manual action from your machine — but it is a single command, not five steps.
 
-The `api` container bind-mounts `./BE/data` → `/app/data`, so the SQLite file survives redeploys. Never
-delete that directory on the host: it holds every user, dog-rota assignment and home-chore claim.
+### Topology (as audited)
+
+| Piece | Where |
+| --- | --- |
+| Host | DigitalOcean droplet, `x86_64`, 1 vCPU / 1 GB, `ssh do` |
+| Production compose | `/root/docker-compose-scripts/docker-compose.yml` — tracked here as [`deploy/docker-compose.vps.yml`](./deploy/docker-compose.vps.yml) |
+| API container | `chores_api`, published on **`127.0.0.1:8082`** → container `:8000` |
+| SQLite | `/home/util/chores/data/database.db` → bind-mounted to `/app/data` |
+| Frontend | static build at `/home/util/chores/dist`, served by host nginx |
+| Reverse proxy | host nginx: `chores.dempseypalaciotascon.com` → `proxy_pass http://127.0.0.1:8082/` |
+| TLS | certbot systemd timers (`certbot.timer`, `snap.certbot.renew.timer`) |
+
+The repo-root `docker-compose.yml` is **not** what runs in production — it uses service `api`, port
+`8000:8000`, a relative volume and `env_file:`. Production uses service `chores_api`, port `8082`, an
+absolute volume and inline `environment:`. Only `deploy/docker-compose.vps.yml` describes the server.
+
+A trailing slash on that `proxy_pass` means **nginx strips `/api`** before forwarding: the container
+serves `/chores/home`, and the browser asks for `/api/chores/home`. `/healthz` follows the same rule.
+
+With 1 GB of RAM, never build images on the droplet — build and push from your machine.
+
+Never delete `/home/util/chores/data`: it holds every user, dog-rota assignment and home-chore claim.
 
 ### One-command release
 
@@ -342,12 +363,13 @@ cp .deploy.env.example .deploy.env   # once: set HOST, WEB_ROOT, COMPOSE_DIR
    non-`main` branch, and on `main` refuses to ship a commit that isn't pushed (i.e. one CI has never
    seen). Records the currently-running image ID for rollback.
 2. **Checks** — `uv run pytest` and `npm run lint && npm run build`. Skip with `--skip-checks`.
-3. **Build + push the API image** — `docker buildx build --platform linux/amd64`, tagged both
-   `<git-sha>` and `latest`.
+3. **Build + push the API image** — `docker buildx build --platform linux/amd64`, tagged
+   `chores_api_v1-<git-sha>` (immutable) and `chores_api_v1` (moving pointer).
 4. **Build the frontend** — `VITE_API_BASE` is baked in at build **time** from `.env.production`.
 5. **Back up the live SQLite file** — `database.db.bak-<timestamp>` beside the original.
 6. **Publish the frontend** — `rsync dist/` to `WEB_ROOT` on the host.
-7. **Redeploy** — `TAG=<sha> docker compose pull api && docker compose up -d --wait api`.
+7. **Redeploy** — `CHORES_TAG=chores_api_v1-<sha> docker compose pull chores_api` then
+   `up -d --wait chores_api`, run from `/root/docker-compose-scripts`.
 8. **Smoke test** — polls `GET /api/chores/home` and `/api/chores/dog-walking` and fails the release if
    either stops returning `periodStart` / `weekStart`.
 
@@ -368,7 +390,8 @@ These are the ways a *manual* deploy looks fine and isn't:
 Every release pushes an immutable `<git-sha>` tag, so a rollback is a tag change, not a rebuild:
 
 ```bash
-ssh do "cd <COMPOSE_DIR> && TAG=<previous-sha> docker compose up -d --wait api"
+ssh do "cd /root/docker-compose-scripts && CHORES_TAG=chores_api_v1-<previous-sha> \
+  docker compose up -d --wait chores_api"
 ```
 
 The release script prints the previous image ID. If a migration-free schema change is implicated, restore
@@ -383,19 +406,27 @@ polls; anything that boots but can't reach SQLite must not report healthy.
 
 ### Environment on the host
 
-The `api` service reads `BE/.env` via `env_file:` (path relative to the compose file). `SECRET_KEY` and
-`RESEND_API_KEY` have no defaults in `app/config.py`, so a missing file kills the container at startup:
+Two different mechanisms, do not confuse them:
+
+- **Production** (`deploy/docker-compose.vps.yml`) declares `environment:` inline and takes
+  `RESEND_API_KEY` / `SECRET_KEY` from `/root/docker-compose-scripts/.env` by substitution. That file
+  holds **only those two keys**; there is no `ENVIRONMENT` entry, and `app/config.py` defaults it to
+  `PROD`.
+- **Repo-root** (`docker-compose.yml`, local dev) uses `env_file: ./BE/.env`.
+
+Either way `SECRET_KEY` and `RESEND_API_KEY` have no defaults in `app/config.py`, so a missing value
+kills the container at startup:
 
 ```
 pydantic_core._pydantic_core.ValidationError: 2 validation errors for Settings
 ERROR:    Application startup failed. Exiting.
 ```
 
-Exit code 3, which `restart: always` turns into a silent crash loop. If the VPS keeps its **own copy** of
-the compose file, mirror the `env_file:` block into it — a repo-only change never reaches the server.
+Exit code 3, which the restart policy turns into a silent crash loop — this is exactly what happened
+locally before `env_file:` was wired up.
 
-That file must contain `ENVIRONMENT=PROD`. Leaving `DEV` there seeds a test admin user and three weeks of
-timetable rows into the live database.
+On the VPS, **do not add `ENVIRONMENT=DEV`** to `/root/docker-compose-scripts/.env`: it would seed a test
+admin user and three weeks of rota rows into the live database. Production relies on the `PROD` default.
 
 Write entries as `KEY=value` with no spaces around the `=`. Compose tolerates `KEY = value`, but
 `docker run --env-file` rejects it (`variable 'KEY ' contains whitespaces`), which makes the file subtly

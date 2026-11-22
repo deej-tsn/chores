@@ -64,7 +64,9 @@ FE/chores/src/utils/timetable.ts   dog-rota types, API→UI transform, Monday/we
 FE/chores/src/utils/homeChores.ts  home-chore types, fortnight anchoring, claimant counts
 FE/chores/src/utils/dates.ts       calendar-safe date helpers shared by both sections
 FE/chores/src/types/user.ts        User / Token / TokenData shapes
-scripts/release.sh                 the only release path: build+push image, rsync FE, redeploy, smoke test
+deploy/docker-compose.vps.yml      THE production compose file (also at /root/docker-compose-scripts on the VPS)
+docker-compose.yml                 local/dev api container — never the production definition
+scripts/release.sh                 release: build+push image, rsync FE, redeploy, smoke test
 ```
 
 ## 4. Domain vocabulary

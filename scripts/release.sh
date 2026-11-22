@@ -26,12 +26,19 @@ if [[ -f .deploy.env ]]; then
 fi
 
 HOST="${HOST:-do}"                                            # ssh alias
-IMAGE="${IMAGE:-deejtsn/private:chores_api_v1}"               # Docker Hub repo (no tag)
+# Docker Hub repository and the tag name. They are separate on purpose: this project has always
+# tagged releases `chores_api_v1`, so `deejtsn/private:<tag>-<sha>` is the only valid way to add an
+# immutable tag. Appending a second colon (`deejtsn/private:chores_api_v1:<sha>`) is an INVALID
+# reference — `docker compose config` accepts it, then the daemon rejects it at deploy time.
+IMAGE_REPO="${IMAGE_REPO:-deejtsn/private}"                   # repository, never includes a tag
+TAG_BASE="${TAG_BASE:-chores_api_v1}"                         # mutable pointer tag
+SERVICE="${SERVICE:-chores_api}"                              # compose service name on the VPS
+CONTAINER="${CONTAINER:-$SERVICE}"                            # container name (VPS sets container_name)
 PLATFORM="${PLATFORM:-linux/amd64}"                           # VPS arch; the dev Mac is arm64
 API_BASE="${API_BASE:-https://chores.dempseypalaciotascon.com/api}"
 WEB_ROOT="${WEB_ROOT:-}"                                      # required: nginx web root on the host
 COMPOSE_DIR="${COMPOSE_DIR:-}"                                # required: compose file dir on the host
-REMOTE_DB="${REMOTE_DB:-$COMPOSE_DIR/BE/data/database.db}"     # SQLite file backing the volume
+REMOTE_DB="${REMOTE_DB:-}"                                    # required: SQLite file on the host
 
 DRY_RUN=0
 SKIP_CHECKS=0
@@ -57,6 +64,10 @@ remote() { printf '  $ ssh %s %s\n' "$HOST" "$1"; [ "$DRY_RUN" -eq 1 ] || ssh "$
 step "Preflight"
 [[ -n "$WEB_ROOT" ]]    || die "WEB_ROOT is not set (copy .deploy.env.example to .deploy.env)"
 [[ -n "$COMPOSE_DIR" ]] || die "COMPOSE_DIR is not set (copy .deploy.env.example to .deploy.env)"
+[[ -n "$REMOTE_DB" ]]   || die "REMOTE_DB is not set (copy .deploy.env.example to .deploy.env)"
+# Catch the invalid-reference trap before pushing anything: a repo name must not carry a tag.
+[[ "$IMAGE_REPO" == *:* ]] && die "IMAGE_REPO must not include a tag ('$IMAGE_REPO'); set TAG_BASE instead"
+[[ "$TAG_BASE" == *:* || "$TAG_BASE" == */* ]] && die "TAG_BASE must be a bare tag name, got '$TAG_BASE'"
 command -v docker >/dev/null || die "docker is not installed"
 command -v npm >/dev/null    || die "npm is not installed"
 
@@ -78,9 +89,12 @@ fi
 
 # Capture what is running NOW so the release can be reversed.
 PREV_IMAGE=""
+PREV_TAG=""
 if [ "$DRY_RUN" -eq 0 ]; then
-  PREV_IMAGE="$(ssh "$HOST" "docker ps -q --filter label=com.docker.compose.service=api | head -1 | xargs -r docker inspect --format '{{.Image}}'" 2>/dev/null || true)"
-  [[ -n "$PREV_IMAGE" ]] && ok "currently running image: $PREV_IMAGE" || warn "could not identify the running container"
+  PREV_IMAGE="$(ssh "$HOST" "docker ps -q --filter label=com.docker.compose.service=$SERVICE | head -1 | xargs -r docker inspect --format '{{.Image}}'" 2>/dev/null || true)"
+  PREV_TAG="$(ssh "$HOST" "docker ps -q --filter label=com.docker.compose.service=$SERVICE | head -1 | xargs -r docker inspect --format '{{.Config.Image}}'" 2>/dev/null || true)"
+  [[ -n "$PREV_IMAGE" ]] && ok "currently running image: $PREV_IMAGE (${PREV_TAG:-unknown tag})" \
+    || warn "could not identify the running container"
 fi
 
 if [[ "$DRY_RUN" -eq 1 ]]; then
@@ -101,12 +115,14 @@ else
 fi
 
 # ---------------------------------------------------------------- 2. build + push the API image
-step "Build and push $IMAGE:$SHA ($PLATFORM)"
+IMMUTABLE_TAG="$TAG_BASE-$SHA"
+step "Build and push $IMAGE_REPO:$IMMUTABLE_TAG ($PLATFORM)"
 # --platform is mandatory: this Mac is arm64 and the VPS is amd64. Without it the host gets a
-# manifest it cannot run. Two tags: immutable <sha> for rollback, `latest` for humans.
+# manifest it cannot run. Two tags: `$TAG_BASE-<sha>` for rollback, `$TAG_BASE` as the moving pointer
+# the VPS compose defaults to.
 run "docker buildx build --platform $PLATFORM \
-  -t '$IMAGE:$SHA' -t '$IMAGE:latest' --push BE"
-ok "pushed $IMAGE:$SHA and $IMAGE:latest"
+  -t '$IMAGE_REPO:$IMMUTABLE_TAG' -t '$IMAGE_REPO:$TAG_BASE' --push BE"
+ok "pushed $IMAGE_REPO:$IMMUTABLE_TAG and $IMAGE_REPO:$TAG_BASE"
 
 # ---------------------------------------------------------------- 3. build the static frontend
 step "Build the frontend"
@@ -132,11 +148,40 @@ else
 fi
 
 # ---------------------------------------------------------------- 6. redeploy the API container
-step "Redeploy the API with TAG=$SHA"
-# `pull` is not optional — `up -d` alone reuses the cached image. `--wait` turns a crash loop into a
-# non-zero exit instead of a silent "successful" deploy.
-remote "cd '$COMPOSE_DIR' && export TAG='$SHA' && docker compose pull api && docker compose up -d --wait api"
-ok "api container healthy"
+step "Redeploy $SERVICE with CHORES_TAG=$IMMUTABLE_TAG"
+# `pull` is not optional — `up -d` alone reuses the cached image. CHORES_TAG is what the VPS compose
+# file interpolates; it defaults to the mutable tag, so an un-updated host still works.
+DEPLOY_CMD="cd '$COMPOSE_DIR' && export CHORES_TAG='$IMMUTABLE_TAG' && docker compose pull $SERVICE && docker compose up -d"
+
+# `up -d --wait` (compose >= 2.17) is the clean way to fail on a crash loop, but don't assume it: if the
+# host's compose is older, fall back to polling the healthcheck by hand.
+if [ "$DRY_RUN" -eq 1 ] || ssh "$HOST" "docker compose up --help 2>&1 | grep -q -- '--wait'"; then
+  remote "$DEPLOY_CMD --wait $SERVICE"
+  ok "$SERVICE healthy (compose --wait)"
+else
+  remote "$DEPLOY_CMD $SERVICE"
+
+  step "Wait for $CONTAINER to report healthy"
+  WAIT_STATUS="unknown"
+  HEALTHY=0
+  for _ in $(seq 1 30); do
+    WAIT_STATUS="$(ssh "$HOST" "docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' '$CONTAINER'" 2>/dev/null || echo unknown)"
+    case "$WAIT_STATUS" in
+      healthy) HEALTHY=1; break ;;
+      unhealthy|exited|dead) break ;;
+    esac
+    sleep 5
+  done
+  if [ "$DRY_RUN" -eq 1 ]; then
+    warn "skipped during dry run"
+  elif [ "$HEALTHY" -eq 1 ]; then
+    ok "$CONTAINER healthy"
+  else
+    printf '\n  last 40 log lines:\n'
+    ssh "$HOST" "cd '$COMPOSE_DIR' && docker compose logs --tail=40 $SERVICE" || true
+    die "$CONTAINER never became healthy (last status: $WAIT_STATUS)"
+  fi
+fi
 
 # ---------------------------------------------------------------- 7. smoke test the public API
 step "Smoke test $API_BASE"
@@ -165,12 +210,13 @@ fi
 # ---------------------------------------------------------------- summary
 printf '\n\033[1mRelease summary\033[0m\n'
 printf '  commit      %s (%s)\n' "$SHA" "$BRANCH"
-printf '  image       %s:%s\n' "$IMAGE" "$SHA"
+printf '  image       %s:%s\n' "$IMAGE_REPO" "$IMMUTABLE_TAG"
 printf '  frontend    %s:%s/\n' "$HOST" "$WEB_ROOT"
 printf '  db backup   %s.bak-%s\n' "$REMOTE_DB" "$STAMP"
-if [[ -n "$PREV_IMAGE" ]]; then
-  printf '\n  rollback:   cd %s && TAG=<previous-sha> docker compose up -d --wait api\n' "$COMPOSE_DIR"
-  printf '              previous image id was %s\n' "$PREV_IMAGE"
+if [[ -n "$PREV_TAG" ]]; then
+  printf '\n  rollback:   ssh %s "cd %s && CHORES_TAG=%s docker compose up -d --wait %s"\n' \
+    "$HOST" "$COMPOSE_DIR" "${PREV_TAG#*:}" "$SERVICE"
+  printf '              (previously running %s, image id %s)\n' "$PREV_TAG" "$PREV_IMAGE"
 fi
 
 if [ "$SMOKE_FAILED" -eq 1 ]; then
