@@ -97,6 +97,7 @@ Mounted under root path `/api` in production (`root_path="/api"`); a local uvico
 | GET | `/chores/home?period=YYYY-MM-DD` | none | home chores for the fortnight of `period` (personalises `claimed_by_me`) |
 | PATCH | `/chores/home` | `user`\|`admin` | `{assignmentID, claimed, period}` → claim/leave one chore |
 | GET | `/count` | admin | dog shifts per person since `START_DATE` |
+| GET | `/healthz` | none | readiness probe: `{"status": "ok"}`, or 503 when SQLite is unreadable (used by the compose healthcheck) |
 
 Cookie settings: `httponly`, `secure`, `samesite="none"`, `max_age=3600`, `path="/"` — the frontend
 therefore must call over HTTPS with `credentials: "include"`.
