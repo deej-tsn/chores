@@ -98,6 +98,10 @@ copy in `FE/chores/local_cert/`.
 
 ## Gotchas
 
+- `GET /healthz` is load-bearing infrastructure, not a demo route: `docker-compose.yml`'s `healthcheck`
+  polls it and `scripts/release.sh` runs `compose up -d --wait` on the result. Keep it unauthenticated,
+  keep it touching the DB (`SELECT 1`) so a broken volume reports **503**, and keep it out of the auth
+  matrix in `tests/test_auth.py` (it is deliberately public).
 - `Field(..., env="NAME")` in `config.py` is legacy pydantic-settings v1 style; v2 matches env names
   case-insensitively against the **field name**, so `DISABLE_GUEST_MODE` works by coincidence. If you
   add a var that maps to an awkward name, use `validation_alias`/`alias` explicitly.
