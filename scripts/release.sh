@@ -139,12 +139,19 @@ ok "backup: $REMOTE_DB.bak-$STAMP"
 
 # ---------------------------------------------------------------- 5. publish the frontend
 step "Copy dist/ to $HOST:$WEB_ROOT"
-if [ "$DRY_RUN" -eq 0 ]; then
-  ssh "$HOST" "mkdir -p '$WEB_ROOT'"
-  rsync -az --delete --exclude '.DS_Store' FE/chores/dist/ "$HOST:$WEB_ROOT/"
-  ok "frontend published"
+HAS_RSYNC=0
+{ [ "$DRY_RUN" -eq 1 ] || ssh "$HOST" "command -v rsync >/dev/null 2>&1"; } && HAS_RSYNC=1
+
+if [ "$HAS_RSYNC" -eq 1 ]; then
+  # --delete drops assets from previous builds; Vite hashes filenames, so stale ones would pile up.
+  run "ssh '$HOST' \"mkdir -p '$WEB_ROOT'\" && rsync -az --delete --exclude '.DS_Store' FE/chores/dist/ '$HOST:$WEB_ROOT/'"
+  ok "frontend published (rsync, stale assets pruned)"
 else
-  printf '  $ rsync -az --delete FE/chores/dist/ %s:%s/\n' "$HOST" "$WEB_ROOT"
+  # Minimal hosts may not ship rsync. scp still updates index.html and the hashed assets; old assets
+  # linger harmlessly (nothing references them).
+  warn "rsync missing on $HOST — falling back to scp (no pruning of old assets)"
+  run "ssh '$HOST' \"mkdir -p '$WEB_ROOT'\" && scp -q -r FE/chores/dist/* '$HOST:$WEB_ROOT/'"
+  ok "frontend published (scp)"
 fi
 
 # ---------------------------------------------------------------- 6. redeploy the API container

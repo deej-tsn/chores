@@ -343,8 +343,11 @@ The repo-root `docker-compose.yml` is **not** what runs in production — it use
 `8000:8000`, a relative volume and `env_file:`. Production uses service `chores_api`, port `8082`, an
 absolute volume and inline `environment:`. Only `deploy/docker-compose.vps.yml` describes the server.
 
-A trailing slash on that `proxy_pass` means **nginx strips `/api`** before forwarding: the container
-serves `/chores/home`, and the browser asks for `/api/chores/home`. `/healthz` follows the same rule.
+**The proxy strips `/api` before forwarding.** The container serves bare paths — `/chores/home` is a
+200 in-container and `/api/chores/home` is a 404 — so the browser asks for `/api/chores/home` and
+FastAPI sees `/chores/home`. `/healthz` follows the same rule (publicly `/api/healthz`).
+
+The chores vhost is in an nginx *include*, not `/etc/nginx/nginx.conf`; `nginx -T` is how to find it.
 
 With 1 GB of RAM, never build images on the droplet — build and push from your machine.
 
