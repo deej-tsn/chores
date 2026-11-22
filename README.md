@@ -397,6 +397,10 @@ the compose file, mirror the `env_file:` block into it — a repo-only change ne
 That file must contain `ENVIRONMENT=PROD`. Leaving `DEV` there seeds a test admin user and three weeks of
 timetable rows into the live database.
 
+Write entries as `KEY=value` with no spaces around the `=`. Compose tolerates `KEY = value`, but
+`docker run --env-file` rejects it (`variable 'KEY ' contains whitespaces`), which makes the file subtly
+non-portable.
+
 ### Ship both halves together
 
 Steps 4 and 6/7 are two halves of one deploy. A route rename — e.g. `/timetable` →
