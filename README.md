@@ -333,6 +333,7 @@ is a manual action from your machine — but it is a single command, not five st
 | --- | --- |
 | Host | DigitalOcean droplet, `x86_64`, 1 vCPU / 1 GB, `ssh do` |
 | Production compose | `/root/docker-compose-scripts/docker-compose.yml` — tracked here as [`deploy/docker-compose.vps.yml`](./deploy/docker-compose.vps.yml) |
+| Compose project | **`chores_api`**, *not* the directory name — `docker compose` must be given `--project-name chores_api` or it builds a parallel stack that collides on `container_name` |
 | API container | `chores_api`, published on **`127.0.0.1:8082`** → container `:8000` |
 | SQLite | `/home/util/chores/data/database.db` → bind-mounted to `/app/data` |
 | Frontend | static build at `/home/util/chores/dist`, served by host nginx |
@@ -377,6 +378,10 @@ cp .deploy.env.example .deploy.env   # once: set HOST, WEB_ROOT, COMPOSE_DIR
    either stops returning `periodStart` / `weekStart`.
 
 Useful flags: `--dry-run` prints every command and touches nothing, `--skip-checks` skips step 2.
+
+Every SSH call is retried up to 5 times on a transport failure (exit 255). A burst of connections can
+trip the host's rate limiting and refuse port 22 for about a minute; without the retry a release aborts
+**after** the image has been pushed and the frontend published, leaving new-FE/old-BE.
 
 ### Three silent failures it prevents
 

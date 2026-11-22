@@ -32,6 +32,7 @@ HOST="${HOST:-do}"                                            # ssh alias
 # reference — `docker compose config` accepts it, then the daemon rejects it at deploy time.
 IMAGE_REPO="${IMAGE_REPO:-deejtsn/private}"                   # repository, never includes a tag
 TAG_BASE="${TAG_BASE:-chores_api_v1}"                         # mutable pointer tag
+PROJECT="${PROJECT:-chores_api}"                              # compose project name on the VPS
 SERVICE="${SERVICE:-chores_api}"                              # compose service name on the VPS
 CONTAINER="${CONTAINER:-$SERVICE}"                            # container name (VPS sets container_name)
 PLATFORM="${PLATFORM:-linux/amd64}"                           # VPS arch; the dev Mac is arm64
@@ -57,8 +58,30 @@ ok()    { printf '  \033[32m✓\033[0m %s\n' "$*"; }
 warn()  { printf '  \033[33m!\033[0m %s\n' "$*"; }
 die()   { printf '\n\033[31m✗ %s\033[0m\n' "$*" >&2; exit 1; }
 run()   { printf '  $ %s\n' "$*"; [ "$DRY_RUN" -eq 1 ] || eval "$@"; }
+# ssh, retrying transport failures. A burst of connections can trip a rate limit / fail2ban and
+# refuse port 22 for ~a minute, which must not abort a release half-way through (it once did:
+# the frontend was already published when the redeploy started failing).
+ssh_retry() {
+  local cmd="$1" attempt rc
+  for attempt in 1 2 3 4 5; do
+    if ssh "$HOST" "$cmd"; then return 0; fi
+    rc=$?
+    # 255 is ssh's own failure (refused / reset / timeout); a command that ran keeps its own code.
+    if [ "$rc" -ne 255 ] || [ "$attempt" -eq 5 ]; then return "$rc"; fi
+    warn "ssh transport failed (rc 255) — retry $attempt/5 in $((attempt * 15))s"
+    sleep $((attempt * 15))
+  done
+}
+
+# Capture stdout of a remote command, same retry behaviour. Sets REPLY.
+ssh_capture() {
+  local out
+  out="$(ssh_retry "$1" 2>/dev/null)" || out=""
+  REPLY="$(printf '%s' "$out" | tr -d '\r')"
+}
+
 # Run a command on the host. Quoted for a plain (non-quoted) ssh invocation.
-remote() { printf '  $ ssh %s %s\n' "$HOST" "$1"; [ "$DRY_RUN" -eq 1 ] || ssh "$HOST" "$1"; }
+remote() { printf '  $ ssh %s %s\n' "$HOST" "$1"; [ "$DRY_RUN" -eq 1 ] || ssh_retry "$1"; }
 
 # ---------------------------------------------------------------- preflight
 step "Preflight"
@@ -91,8 +114,10 @@ fi
 PREV_IMAGE=""
 PREV_TAG=""
 if [ "$DRY_RUN" -eq 0 ]; then
-  PREV_IMAGE="$(ssh "$HOST" "docker ps -q --filter label=com.docker.compose.service=$SERVICE | head -1 | xargs -r docker inspect --format '{{.Image}}'" 2>/dev/null || true)"
-  PREV_TAG="$(ssh "$HOST" "docker ps -q --filter label=com.docker.compose.service=$SERVICE | head -1 | xargs -r docker inspect --format '{{.Config.Image}}'" 2>/dev/null || true)"
+  ssh_capture "docker ps -q --filter label=com.docker.compose.service=$SERVICE | head -1 | xargs -r docker inspect --format '{{.Image}}'"
+  PREV_IMAGE="$REPLY"
+  ssh_capture "docker ps -q --filter label=com.docker.compose.service=$SERVICE | head -1 | xargs -r docker inspect --format '{{.Config.Image}}'"
+  PREV_TAG="$REPLY"
   [[ -n "$PREV_IMAGE" ]] && ok "currently running image: $PREV_IMAGE (${PREV_TAG:-unknown tag})" \
     || warn "could not identify the running container"
 fi
@@ -144,13 +169,13 @@ HAS_RSYNC=0
 
 if [ "$HAS_RSYNC" -eq 1 ]; then
   # --delete drops assets from previous builds; Vite hashes filenames, so stale ones would pile up.
-  run "ssh '$HOST' \"mkdir -p '$WEB_ROOT'\" && rsync -az --delete --exclude '.DS_Store' FE/chores/dist/ '$HOST:$WEB_ROOT/'"
+  run "ssh_retry \"mkdir -p '$WEB_ROOT'\" && rsync -az --delete --exclude '.DS_Store' FE/chores/dist/ '$HOST:$WEB_ROOT/'"
   ok "frontend published (rsync, stale assets pruned)"
 else
   # Minimal hosts may not ship rsync. scp still updates index.html and the hashed assets; old assets
   # linger harmlessly (nothing references them).
   warn "rsync missing on $HOST — falling back to scp (no pruning of old assets)"
-  run "ssh '$HOST' \"mkdir -p '$WEB_ROOT'\" && scp -q -r FE/chores/dist/* '$HOST:$WEB_ROOT/'"
+  run "ssh_retry \"mkdir -p '$WEB_ROOT'\" && scp -q -r FE/chores/dist/* '$HOST:$WEB_ROOT/'"
   ok "frontend published (scp)"
 fi
 
@@ -158,7 +183,10 @@ fi
 step "Redeploy $SERVICE with CHORES_TAG=$IMMUTABLE_TAG"
 # `pull` is not optional — `up -d` alone reuses the cached image. CHORES_TAG is what the VPS compose
 # file interpolates; it defaults to the mutable tag, so an un-updated host still works.
-DEPLOY_CMD="cd '$COMPOSE_DIR' && export CHORES_TAG='$IMMUTABLE_TAG' && docker compose pull $SERVICE && docker compose up -d"
+# --project-name is not optional: the live container belongs to project `chores_api`, while compose
+# would otherwise derive the project from the directory (`docker-compose-scripts`) and build a
+# second, parallel stack that collides on `container_name`.
+DEPLOY_CMD="cd '$COMPOSE_DIR' && export CHORES_TAG='$IMMUTABLE_TAG' && docker compose --project-name $PROJECT pull $SERVICE && docker compose --project-name $PROJECT up -d"
 
 # `up -d --wait` (compose >= 2.17) is the clean way to fail on a crash loop, but don't assume it: if the
 # host's compose is older, fall back to polling the healthcheck by hand.
@@ -172,7 +200,8 @@ else
   WAIT_STATUS="unknown"
   HEALTHY=0
   for _ in $(seq 1 30); do
-    WAIT_STATUS="$(ssh "$HOST" "docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' '$CONTAINER'" 2>/dev/null || echo unknown)"
+    ssh_capture "docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' '$CONTAINER'"
+    WAIT_STATUS="${REPLY:-unknown}"
     case "$WAIT_STATUS" in
       healthy) HEALTHY=1; break ;;
       unhealthy|exited|dead) break ;;
