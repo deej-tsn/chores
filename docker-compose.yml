@@ -6,6 +6,14 @@ services:
     image: deejtsn/private:chores_api_v1
     volumes:
       - ./BE/data:/app/data            # Mount host folder for persistence
+    # Required: SECRET_KEY and RESEND_API_KEY have no defaults, so without this file the
+    # container exits during startup with a pydantic ValidationError (exit code 3).
+    # Copy BE/.env.example to BE/.env on the host and fill it in before `docker compose up`.
+    #
+    # WARNING: on a production host this file must contain ENVIRONMENT=PROD. Leaving the DEV
+    # value there seeds a test admin user and 3 weeks of timetable rows into the live DB.
+    env_file:
+      - ./BE/.env
     environment:
       DB_PATH: "/app/data/database.db"
     platform: linux/amd64  

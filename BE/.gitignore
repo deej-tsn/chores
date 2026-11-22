@@ -7,6 +7,8 @@ env/
 .env
 
 database.db
+# backups of the real DB (contains password hashes) must never be committed
+database.db*
 build
 
 .venv/

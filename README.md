@@ -327,6 +327,33 @@ cd FE/chores && npm run lint  # passes
 `nginx.conf` that falls back to `index.html` for React Router paths. `VITE_API_BASE` is baked in at
 build time, so rebuild the image when the API URL changes.
 
+**Environment.** The `api` service reads `BE/.env` via `env_file:`. `SECRET_KEY` and `RESEND_API_KEY`
+have no defaults in `app/config.py`, so if that file is missing or incomplete the container dies during
+startup with `pydantic_core._pydantic_core.ValidationError: 2 validation errors for Settings` and
+exit code 3 (Compose's `restart: always` then turns it into a crash loop). Start from
+`BE/.env.example`, and set `ENVIRONMENT=PROD` in production.
+
+### Pre-deploy checklist
+
+Run in this order; each step assumes the previous one passed.
+
+1. **Green checks.** `cd BE && uv run pytest -v` (58 passed) · `cd FE/chores && npm run build && npm run lint`.
+   `uv run ruff check .` should stay at the 6-finding baseline — no new ones.
+2. **Merge via PR.** `.github/workflows/tests.yml` only runs on `pull_request` and `push: [main]`, so an
+   unmerged branch has **never been CI'd**. Check the PR is green before merging.
+3. **Host env.** `BE/.env` exists on the server with `SECRET_KEY`, `RESEND_API_KEY`, `ENVIRONMENT=PROD`.
+4. **Back up the volume.** `cp BE/data/database.db` somewhere safe. No migrations exist, but the 3
+   home-chore tables are purely additive (`create_all` makes them), so the restore path is "put the old
+   file back", never "delete the DB".
+5. **Deploy backend and frontend together.** The dog rota moved from `/timetable` to
+   `/chores/dog-walking` with **no alias**, so either order alone breaks the rota page until the other
+   half ships. Keep the window short or reintroduce a temporary alias on the old paths.
+6. **Smoke test unauthenticated:** `GET /api/chores/home` and `GET /api/chores/dog-walking` both return
+   JSON (200, not 404/500), then log in at `/login` and confirm a claim toggle round-trips.
+7. **Check the email jobs.** The daily 09:00 dog email is unchanged; the new Sunday 21:00 home-chores
+   job runs every Sunday but only sends when the coming Monday is a fortnight anchor. Verify
+   `get_email_list()` recipients before leaving it unattended — it sends real mail via Resend.
+
 ## Conventions
 
 - **Backend:** Python 3.13, `uv` for deps, Ruff for lint/format, SQLModel for models, endpoints return
